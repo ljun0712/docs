@@ -1,47 +1,48 @@
 ---
 title: TiDB Cloud HTAP Quick Start
 summary: Learn how to get started with HTAP in TiDB Cloud.
+aliases: ['/tidbcloud/use-htap-cluster']
 ---
 
-# TiDB CloudHTAPクイックスタート {#tidb-cloud-htap-quick-start}
+# TiDB Cloud HTAP Quick Start {#tidb-cloud-htap-quick-start}
 
-[HTAP](https://en.wikipedia.org/wiki/Hybrid_transactional/analytical_processing)は、ハイブリッドトランザクションおよび分析処理を意味します。 TiDB CloudのHTAPクラスタは、トランザクション処理用に設計された行ベースのストレージエンジンである[TiKV](https://tikv.org)と、分析処理用に設計された列型ストレージである[TiFlash](https://docs.pingcap.com/tidb/stable/tiflash-overview)で構成されています。アプリケーションデータは最初にTiKVに保存され、次にRaftコンセンサスアルゴリズムを介してTiFlashに複製されます。つまり、行ストレージから列ストレージへのリアルタイムレプリケーションです。
+[HTAP](https://en.wikipedia.org/wiki/Hybrid_transactional/analytical_processing) means Hybrid Transactional and Analytical Processing. The HTAP cluster in TiDB Cloud is composed of [TiKV](https://tikv.org), a row-based storage engine designed for transactional processing, and [TiFlash](https://docs.pingcap.com/tidb/stable/tiflash-overview), a columnar storage designed for analytical processing. Your application data is first stored in TiKV and then replicated to TiFlash via the Raft consensus algorithm. So it is a real-time replication from the row storage to the columnar storage.
 
-このチュートリアルでは、 TiDB Cloudのハイブリッドトランザクションおよび分析処理（HTAP）機能を簡単に体験する方法について説明します。コンテンツには、テーブルをTiFlashに複製する方法、TiFlashを使用してクエリを実行する方法、およびパフォーマンスの向上を体験する方法が含まれています。
+This tutorial guides you through an easy way to experience the Hybrid Transactional and Analytical Processing (HTAP) feature of TiDB Cloud. The content includes how to replicate tables to TiFlash, how to run queries with TiFlash, and how to experience the performance boost.
 
-## あなたが始める前に {#before-you-begin}
+## Before you begin {#before-you-begin}
 
-HTAP機能を体験する前に、 [TiDB Cloudクイックスタート](/tidb-cloud/tidb-cloud-quickstart.md)に従ってTiFlashノードでクラスタを作成し、TiDBクラスタに接続して、CapitalBikeshareサンプルデータをクラスタにインポートします。
+Before experiencing the HTAP feature, follow [TiDB Cloud Quick Start](/tidb-cloud/tidb-cloud-quickstart.md) to create a cluster with TiFlash nodes, connect to the TiDB cluster, and import the Capital Bikeshare sample data to the cluster.
 
-## 手順 {#steps}
+## Steps {#steps}
 
-### 手順1.サンプルデータを列型ストレージエンジンに複製します {#step-1-replicate-the-sample-data-to-the-columnar-storage-engine}
+### Step 1. Replicate the sample data to the columnar storage engine {#step-1-replicate-the-sample-data-to-the-columnar-storage-engine}
 
-TiFlashノードを持つクラスタが作成された後、TiKVはデフォルトでデータをTiFlashに複製しません。レプリケートするテーブルを指定するには、TiDBのMySQLクライアントでDDLステートメントを実行する必要があります。その後、TiDBはそれに応じて指定されたテーブルレプリカをTiFlashに作成します。
+After a cluster with TiFlash nodes is created, TiKV does not replicate data to TiFlash by default. You need to execute DDL statements in a MySQL client of TiDB to specify the tables to be replicated. After that, TiDB will create the specified table replicas in TiFlash accordingly.
 
-たとえば、 `trips`のテーブル（Capital Bikeshareサンプルデータ内）をTiFlashに複製するには、次のステートメントを実行します。
+For example, to replicate the `trips` table (in the Capital Bikeshare sample data) to TiFlash, execute the following statements:
 
 ```sql
 USE bikeshare;
 ALTER TABLE trips SET TIFLASH REPLICA 1;
 ```
 
-レプリケーションの進行状況を確認するには、次のステートメントを実行します。
+To check the replication progress, execute the following statement:
 
 ```sql
 SELECT * FROM information_schema.tiflash_replica WHERE TABLE_SCHEMA = 'bikeshare' and TABLE_NAME = 'trips';
 ```
 
-前のステートメントの結果：
+In the result of the preceding statement:
 
--   `AVAILABLE`は、特定のテーブルのTiFlashレプリカが使用可能かどうかを示します。 `1`は利用可能、 `0`は利用不可を意味します。レプリカが使用可能になると、このステータスは変更されなくなります。
--   `PROGRESS`は、レプリケーションの進行状況を意味します。値は`0.0` `1.0` 。 `1.0`は、少なくとも1つのレプリカが複製されることを意味します。
+-   `AVAILABLE` indicates whether the TiFlash replica of a specific table is available or not. `1` means available and `0` means unavailable. Once a replica becomes available, this status does not change anymore.
+-   `PROGRESS` means the progress of the replication. The value is between `0.0` and `1.0`. `1.0` means at least one replica is replicated.
 
-### 手順2.HTAPを使用してデータをクエリする {#step-2-query-data-using-htap}
+### Step 2. Query data using HTAP {#step-2-query-data-using-htap}
 
-レプリケーションのプロセスが完了すると、いくつかのクエリの実行を開始できます。
+When the process of replication is completed, you can start to run some queries.
 
-たとえば、さまざまな開始ステーションと終了ステーションによるトリップ数を確認できます。
+For example, you can check the number of trips by different start and end stations:
 
 ```sql
 SELECT start_station_name, end_station_name, COUNT(ride_id) as count from `trips`
@@ -49,11 +50,11 @@ GROUP BY start_station_name, end_station_name
 ORDER BY count ASC;
 ```
 
-### 手順3.行ベースのストレージと列型ストレージのクエリパフォーマンスを比較します {#step-3-compare-the-query-performance-between-row-based-storage-and-columnar-storage}
+### Step 3. Compare the query performance between row-based storage and columnar storage {#step-3-compare-the-query-performance-between-row-based-storage-and-columnar-storage}
 
-このステップでは、TiKV（行ベースのストレージ）とTiFlash（列型ストレージ）の実行統計を比較できます。
+In this step, you can compare the execution statistics between TiKV (row-based storage) and TiFlash (columnar storage).
 
--   TiKVを使用してこのクエリの実行統計を取得するには、次のステートメントを実行します。
+-   To get the execution statistics of this query using TiKV, execute the following statement:
 
     ```sql
     EXPLAIN ANALYZE SELECT /*+ READ_FROM_STORAGE(TIKV[trips]) */ start_station_name, end_station_name, COUNT(ride_id) as count from `trips`
@@ -61,13 +62,13 @@ ORDER BY count ASC;
     ORDER BY count ASC;
     ```
 
-    TiFlashレプリカを含むテーブルの場合、TiDBオプティマイザは、コスト見積もりに基づいて、TiKVレプリカとTiFlashレプリカのどちらを使用するかを自動的に決定します。前の`EXPLAIN ANALYZE`のステートメントでは、 `HINT /*+ READ_FROM_STORAGE(TIKV[trips]) */`を使用してオプティマイザーにTiKVを選択させ、TiKVの実行統計を確認できるようにします。
+    For tables with TiFlash replicas, the TiDB optimizer automatically determines whether to use either TiKV or TiFlash replicas based on the cost estimation. In the preceding `EXPLAIN ANALYZE` statement, `HINT /*+ READ_FROM_STORAGE(TIKV[trips]) */` is used to force the optimizer to choose TiKV so you can check the execution statistics of TiKV.
 
-    > **ノート：**
+    > **Note:**
     >
-    > 5.7.7より前のMySQLコマンドラインクライアントは、デフォルトでオプティマイザヒントを削除します。これらの以前のバージョンで`Hint`構文を使用している場合は、クライアントの起動時に`--comments`オプションを追加してください。例： `mysql -h 127.0.0.1 -P 4000 -uroot --comments` 。
+    > MySQL command-line clients earlier than 5.7.7 strip optimizer hints by default. If you are using the `Hint` syntax in these earlier versions, add the `--comments` option when starting the client. For example: `mysql -h 127.0.0.1 -P 4000 -uroot --comments`.
 
-    出力では、 `execution info`列から実行時間を取得できます。
+    In the output, you can get the execution time from the `execution info` column.
 
     ```sql
     id                         | estRows   | actRows | task      | access object | execution info                            | operator info                                | memory  | disk
@@ -81,7 +82,7 @@ ORDER BY count ASC;
     (6 rows)
     ```
 
--   TiFlashを使用してこのクエリの実行統計を取得するには、次のステートメントを実行します。
+-   To get the execution statistics of this query using TiFlash, execute the following statement:
 
     ```sql
     EXPLAIN ANALYZE SELECT start_station_name, end_station_name, COUNT(ride_id) as count from `trips`
@@ -89,7 +90,7 @@ ORDER BY count ASC;
     ORDER BY count ASC;
     ```
 
-    出力では、 `execution info`列から実行時間を取得できます。
+    In the output, you can get the execution time from the `execution info` column.
 
     ```sql
     id                                 | estRows   | actRows | task         | access object | execution info                            | operator info                      | memory  | disk
@@ -107,6 +108,14 @@ ORDER BY count ASC;
     (10 rows)
     ```
 
-> **ノート：**
+> **Note:**
 >
-> サンプルデータのサイズが小さく、このドキュメントのクエリは非常に単純であるため、オプティマイザにこのクエリにTiKVを選択させて同じクエリを再度実行するように強制している場合、TiKVはキャッシュを再利用するため、クエリが多くなる可能性があります。もっと早く。データが頻繁に更新されると、キャッシュが失われます。
+> Because the size of sample data is small and the query in this document is very simple, if you have already forced the optimizer to choose TiKV for this query and run the same query again, TiKV will reuse its cache, so the query might be much faster. If the data is updated frequently, the cache will be missed.
+
+## Learn more {#learn-more}
+
+-   [TiFlash Overview](/tiflash/tiflash-overview.md)
+-   [Create TiFlash Replicas](/tiflash/create-tiflash-replicas.md)
+-   [Read Data from TiFlash](/tiflash/use-tidb-to-read-tiflash.md)
+-   [Use MPP Mode](/tiflash/use-tiflash-mpp-mode.md)
+-   [Supported Push-down Calculations](/tiflash/tiflash-supported-pushdown-calculations.md)

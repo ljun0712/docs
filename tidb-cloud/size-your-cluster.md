@@ -3,338 +3,344 @@ title: Determine Your TiDB Size
 summary: Learn how to determine the size of your TiDB Cloud cluster.
 ---
 
-# TiDBサイズを決定する {#determine-your-tidb-size}
+# Determine Your TiDB Size {#determine-your-tidb-size}
 
-このドキュメントでは、専用層クラスタのサイズを決定する方法について説明します。
+This document describes how to determine the size of a Dedicated Tier cluster.
 
-> **ノート：**
+> **Note:**
 >
-> [開発者層クラスタ](/tidb-cloud/select-cluster-tier.md#developer-tier)には、変更できないデフォルトのクラスタサイズが付属しています。
+> A [Developer Tier cluster](/tidb-cloud/select-cluster-tier.md#developer-tier) comes with a default cluster size, which cannot be changed.
 
-## サイズTiDB {#size-tidb}
+## Size TiDB {#size-tidb}
 
-TiDBはコンピューティング専用であり、データを保存しません。水平方向にスケーラブルです。
+TiDB is for computing only and does not store data. It is horizontally scalable.
 
-TiDBのノードサイズとノード数の両方を構成できます。
+You can configure both node size and node quantity for TiDB.
 
-### TiDBノードサイズ {#tidb-node-size}
+### TiDB node size {#tidb-node-size}
 
-サポートされているノードサイズは次のとおりです。
+The supported node sizes include the following:
 
--   4 vCPU、16 GiB（ベータ）
--   8 vCPU、16 GiB
--   16 vCPU、32 GiB
+-   4 vCPU, 16 GiB (Beta)
+-   8 vCPU, 16 GiB
+-   16 vCPU, 32 GiB
 
-> **ノート：**
+> **Note:**
 >
-> TiDBのノードサイズが**4vCPU、16 GiB（ベータ）**に設定されている場合は、次の制限に注意してください。
+> If the node size of TiDB is set as **4 vCPU, 16 GiB (Beta)**, note the following restrictions:
 >
-> -   TiDBのノード数は1または2にのみ設定でき、TiKVのノード数は3に固定されています。
-> -   TiDBは、4つのvCPUTiKVでのみ使用できます。
-> -   TiFlashは利用できません。
+> -   The node quantity of TiDB can only be set to 1 or 2, and the node quantity of TiKV is fixed to 3.
+> -   TiDB can only be used with 4 vCPU TiKV.
+> -   TiFlash is unavailable.
 
-### TiDBノードの数量 {#tidb-node-quantity}
+### TiDB node quantity {#tidb-node-quantity}
 
-高可用性を実現するには、 TiDB Cloudクラスタごとに少なくとも2つのTiDBノードを構成することをお勧めします。
+For high availability, it is recommended that you configure at least two TiDB nodes for each TiDB Cloud cluster.
 
-TiDBサイズを決定する方法の詳細については、 [パフォーマンスリファレンス](#performance-reference)を参照してください。
+For more information about how to determine the TiDB size, see [Performance reference](#performance-reference).
 
-## サイズTiKV {#size-tikv}
+## Size TiKV {#size-tikv}
 
-TiKVはデータの保存を担当します。水平方向にスケーラブルです。
+TiKV is responsible for storing data. It is horizontally scalable.
 
-TiKVのノードサイズ、ノード数、およびストレージサイズを構成できます。
+You can configure node size, node quantity, and storage size for TiKV.
 
-### TiKVノードサイズ {#tikv-node-size}
+### TiKV node size {#tikv-node-size}
 
-サポートされているノードサイズは次のとおりです。
+The supported node sizes include the following:
 
--   4 vCPU、16 GiB（ベータ）
--   8 vCPU、64 GiB
--   16 vCPU、64 GiB
+-   4 vCPU, 16 GiB (Beta)
+-   8 vCPU, 32 GiB
+-   8 vCPU, 64 GiB
+-   16 vCPU, 64 GiB
 
-> **ノート：**
+> **Note:**
 >
-> TiKVのノードサイズが**4vCPU、16 GiB（ベータ）**に設定されている場合は、次の制限に注意してください。
+> If the node size of TiKV is set as **4 vCPU, 16 GiB (Beta)**, note the following restrictions:
 >
-> -   TiDBのノード数は1または2にのみ設定でき、TiKVのノード数は3に固定されています。
-> -   TiKVは、4つのvCPUTiDBでのみ使用できます。
-> -   TiFlashは利用できません。
+> -   The node quantity of TiDB can only be set to 1 or 2, and the node quantity of TiKV is fixed to 3.
+> -   TiKV can only be used with 4 vCPU TiDB.
+> -   TiFlash is unavailable.
 
-### TiKVノードの数量 {#tikv-node-quantity}
+### TiKV node quantity {#tikv-node-quantity}
 
-TiKVノードの数は**少なくとも1セット（3つの異なる使用可能ゾーンに3つのノード）で**ある必要があります。
+The number of TiKV nodes should be **at least 1 set (3 nodes in 3 different Available Zones)**.
 
-TiDB Cloudは、耐久性と高可用性を実現するために、選択したリージョンのすべてのアベイラビリティーゾーン（少なくとも3つ）にTiKVノードを均等にデプロイします。通常の3レプリカのセットアップでは、データはすべてのアベイラビリティーゾーンのTiKVノードに均等に分散され、各TiKVノードのディスクに保持されます。
+TiDB Cloud deploys TiKV nodes evenly to all availability zones (at least 3) in the region you select to achieve durability and high availability. In a typical 3-replica setup, your data is distributed evenly among the TiKV nodes across all availability zones and is persisted to the disk of each TiKV node.
 
-> **ノート：**
+> **Note:**
 >
-> TiDBクラスタをスケーリングすると、3つのアベイラビリティーゾーンのノードが同時に増減します。ニーズに基づいてTiDBクラスタをスケールインまたはスケールアウトする方法については、 [TiDBクラスターをスケーリングする](/tidb-cloud/scale-tidb-cluster.md)を参照してください。
+> When you scale your TiDB cluster, nodes in the 3 availability zones are increased or decreased at the same time. For how to scale in or scale out a TiDB cluster based on your needs, see [Scale Your TiDB Cluster](/tidb-cloud/scale-tidb-cluster.md).
 
-TiKVノードの最小数： `ceil(compressed size of your data ÷ one TiKV capacity) × the number of replicas`
+Minimum number of TiKV nodes: `ceil(compressed size of your data ÷ one TiKV capacity) × the number of replicas`
 
-MySQLダンプファイルのサイズが5TBで、TiDB圧縮率が70％であるとすると、必要なストレージは3584GBです。
+Supposing the size of your MySQL dump files is 5 TB and the TiDB compression ratio is 70%, the storage needed is 3584 GB.
 
-たとえば、AWSの各TiKVノードのストレージサイズを1024 GBに設定した場合、必要なTiKVノードの数は次のようになります。
+For example, if you configure the storage size of each TiKV node on AWS as 1024 GB, the required number of TiKV nodes is as follows:
 
-TiKVノードの最小数： `ceil(3584 ÷ 1024) × 3 = 12`
+Minimum number of TiKV nodes: `ceil(3584 ÷ 1024) × 3 = 12`
 
-TiKVサイズを決定する方法の詳細については、 [パフォーマンスリファレンス](#performance-reference)を参照してください。
+For more information about how to determine the TiKV size, see [Performance reference](#performance-reference).
 
-### TiKVストレージサイズ {#tikv-storage-size}
+### TiKV storage size {#tikv-storage-size}
 
--   8vCPUまたは16vCPUTiKVは、最大4TiBのストレージ容量をサポートします。
--   4 vCPU TiKVは、最大2TiBのストレージ容量をサポートします。
+-   8 vCPU or 16 vCPU TiKV supports up to 4 TiB storage capacity.
+-   4 vCPU TiKV supports up to 2 TiB storage capacity.
 
-> **ノート：**
+> **Note:**
 >
-> クラスタの作成後にTiKVストレージサイズを減らすことはできません。
+> You cannot decrease the TiKV storage size after the cluster creation.
 
-## サイズTiFlash {#size-tiflash}
+## Size TiFlash {#size-tiflash}
 
-TiFlashは、TiKVからのデータをリアルタイムで同期し、箱から出してすぐにリアルタイム分析ワークロードをサポートします。水平方向にスケーラブルです。
+TiFlash synchronizes data from TiKV in real time and supports real-time analytics workloads right out of the box. It is horizontally scalable.
 
-TiFlashのノードサイズ、ノード数、およびストレージサイズを構成できます。
+You can configure node size, node quantity, and storage size for TiFlash.
 
-### TiFlashノードサイズ {#tiflash-node-size}
+### TiFlash node size {#tiflash-node-size}
 
-サポートされているノードサイズは次のとおりです。
+The supported node sizes include the following:
 
--   8 vCPU、64 GiB
--   16 vCPU、128 GiB
+-   8 vCPU, 64 GiB
+-   16 vCPU, 128 GiB
 
-TiDBまたはTiKVのvCPUサイズが**4vCPU、16 GiB（ベータ）に**設定されている場合、TiFlashは使用できないことに注意してください。
+Note that TiFlash is unavailable when the vCPU size of TiDB or TiKV is set as **4 vCPU, 16 GiB (Beta)**.
 
-### TiFlashノードの数量 {#tiflash-node-quantity}
+### TiFlash node quantity {#tiflash-node-quantity}
 
-TiDB Cloudは、TiFlashノードをリージョン内のさまざまなアベイラビリティーゾーンに均等にデプロイします。本番環境で高可用性を実現するには、各TiDB Cloudクラスタに少なくとも2つのTiFlashノードを構成し、データのレプリカを少なくとも2つ作成することをお勧めします。
+TiDB Cloud deploys TiFlash nodes evenly to different availability zones in a region. It is recommended that you configure at least two TiFlash nodes in each TiDB Cloud cluster and create at least two replicas of the data for high availability in your production environment.
 
-TiFlashノードの最小数は、特定のテーブルのTiFlashレプリカ数によって異なります。
+The minimum number of TiFlash nodes depends on the TiFlash replica counts for specific tables:
 
-TiFlashノードの最小数： `min((compressed size of table A * replicas for table A + compressed size of table B * replicas for table B) / size of each TiFlash capacity, max(replicas for table A, replicas for table B))`
+Minimum number of TiFlash nodes: `min((compressed size of table A * replicas for table A + compressed size of table B * replicas for table B) / size of each TiFlash capacity, max(replicas for table A, replicas for table B))`
 
-たとえば、AWS上の各TiFlashノードのストレージサイズを1024 GBに構成し、テーブルAに2つのレプリカ（圧縮サイズは800 GB）を設定し、テーブルBに1つのレプリカ（圧縮サイズは100 GB）を設定すると、必要なTiFlashノードの数は次のとおりです。
+For example, if you configure the storage size of each TiFlash node on AWS as 1024 GB, and set 2 replicas for table A (the compressed size is 800 GB) and 1 replica for table B (the compressed size is 100 GB), then the required number of TiFlash nodes is as follows:
 
-TiFlashノードの最小数： `min((800 GB * 2 + 100 GB * 1) / 1024 GB, max(2, 1)) ≈ 2`
+Minimum number of TiFlash nodes: `min((800 GB * 2 + 100 GB * 1) / 1024 GB, max(2, 1)) ≈ 2`
 
-### TiFlashストレージサイズ {#tiflash-storage-size}
+### TiFlash storage size {#tiflash-storage-size}
 
-TiFlashは、最大2TiBのストレージ容量をサポートします。
+TiFlash supports up to 2 TiB storage capacity.
 
-> **ノート：**
+> **Note:**
 >
-> クラスタの作成後にTiFlashストレージサイズを減らすことはできません。
+> You cannot decrease the TiFlash storage size after the cluster creation.
 
-## パフォーマンスリファレンス {#performance-reference}
+## Performance reference {#performance-reference}
 
-このセクションでは、5つの一般的なTiDBクラスタスケールの[TPC-C](https://www.tpc.org/tpcc/)および[Sysbench](https://github.com/akopytov/sysbench)のパフォーマンステスト結果を提供します。これらは、クラスタサイズを決定する際の参照として使用できます。
+This section provides [TPC-C](https://www.tpc.org/tpcc/) and [Sysbench](https://github.com/akopytov/sysbench) performance test results of five popular TiDB cluster scales, which can be taken as a reference when you determine the cluster size.
 
-テスト環境：
+Test environment:
 
--   TiDBバージョン：v5.4.0
--   倉庫：5000
--   データサイズ：366 G
--   テーブルサイズ：10000000
--   テーブル数：16
+-   TiDB version: v5.4.0
+-   Warehouses: 5000
+-   Data size: 366 G
+-   Table size: 10000000
+-   Table count: 16
 
-次のスケールのいずれかをクリックして、パフォーマンスデータを確認できます。
+You can click any of the following scales to check its performance data.
 
-<details><summary>TiDB：4 vCPU * 2; TiKV：4 vCPU * 3</summary>
+<details>
+<summary>TiDB: 4 vCPU * 2; TiKV: 4 vCPU * 3</summary>
 
--   低遅延で最適なパフォーマンス
+-   Optimal performance with low latency
 
-    TPC-Cのパフォーマンス：
+    TPC-C performance:
 
-    | トランザクションモデル | スレッド | tpmC   | QPS    | レイテンシー（ミリ秒） |
-    | ----------- | ---- | ------ | ------ | ----------- |
-    | TPCC        | 300  | 14,532 | 13,137 | 608         |
+    | Transaction model | Threads | tpmC   | QPS    | Latency (ms) |
+    | ----------------- | ------- | ------ | ------ | ------------ |
+    | TPCC              | 300     | 14,532 | 13,137 | 608          |
 
-    Sysbench OLTPのパフォーマンス：
+    Sysbench OLTP performance:
 
-    | トランザクションモデル | スレッド | TPS    | QPS    | レイテンシー（ミリ秒） |
-    | ----------- | ---- | ------ | ------ | ----------- |
-    | 入れる         | 300  | 8,848  | 8,848  | 36          |
-    | ポイントセレクト    | 600  | 46,224 | 46,224 | 13          |
-    | 読み書き        | 150  | 719    | 14,385 | 209         |
-    | インデックスの更新   | 150  | 4,346  | 4,346  | 35          |
-    | 非インデックスを更新  | 600  | 13,603 | 13,603 | 44          |
+    | Transaction model | Threads | TPS    | QPS    | Latency (ms) |
+    | ----------------- | ------- | ------ | ------ | ------------ |
+    | Insert            | 300     | 8,848  | 8,848  | 36           |
+    | Point Select      | 600     | 46,224 | 46,224 | 13           |
+    | Read Write        | 150     | 719    | 14,385 | 209          |
+    | Update Index      | 150     | 4,346  | 4,346  | 35           |
+    | Update Non-index  | 600     | 13,603 | 13,603 | 44           |
 
--   最大TPSおよびQPS
+-   Maximum TPS and QPS
 
-    TPC-Cのパフォーマンス：
+    TPC-C performance:
 
-    | トランザクションモデル | スレッド  | tpmC   | QPS    | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------ | ------ | ----------- |
-    | TPCC        | 1,200 | 15,208 | 13,748 | 2,321       |
+    | Transaction model | Threads | tpmC   | QPS    | Latency (ms) |
+    | ----------------- | ------- | ------ | ------ | ------------ |
+    | TPCC              | 1,200   | 15,208 | 13,748 | 2,321        |
 
-    Sysbench OLTPのパフォーマンス：
+    Sysbench OLTP performance:
 
-    | トランザクションモデル | スレッド  | TPS    | QPS    | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------ | ------ | ----------- |
-    | 入れる         | 1,500 | 11,601 | 11,601 | 129         |
-    | ポイントセレクト    | 600   | 46,224 | 46,224 | 13          |
-    | 読み書き        | 150   | 14,385 | 719    | 209         |
-    | インデックスの更新   | 1,200 | 6,526  | 6,526  | 184         |
-    | 非インデックスを更新  | 1,500 | 14,351 | 14,351 | 105         |
+    | Transaction model | Threads | TPS    | QPS    | Latency (ms) |
+    | ----------------- | ------- | ------ | ------ | ------------ |
+    | Insert            | 1,500   | 11,601 | 11,601 | 129          |
+    | Point Select      | 600     | 46,224 | 46,224 | 13           |
+    | Read Write        | 150     | 14,385 | 719    | 209          |
+    | Update Index      | 1,200   | 6,526  | 6,526  | 184          |
+    | Update Non-index  | 1,500   | 14,351 | 14,351 | 105          |
 
 </details>
 
-<details><summary>TiDB：8 vCPU * 2; TiKV：8 vCPU * 3</summary>
+<details>
+<summary>TiDB: 8 vCPU * 2; TiKV: 8 vCPU * 3</summary>
 
--   低遅延で最適なパフォーマンス
+-   Optimal performance with low latency
 
-    TPC-Cのパフォーマンス：
+    TPC-C performance:
 
-    | トランザクションモデル | スレッド | tpmC   | QPS    | レイテンシー（ミリ秒） |
-    | ----------- | ---- | ------ | ------ | ----------- |
-    | TPCC        | 600  | 32,266 | 29,168 | 548         |
+    | Transaction model | Threads | tpmC   | QPS    | Latency (ms) |
+    | ----------------- | ------- | ------ | ------ | ------------ |
+    | TPCC              | 600     | 32,266 | 29,168 | 548          |
 
-    Sysbench OLTPのパフォーマンス：
+    Sysbench OLTP performance:
 
-    | トランザクションモデル | スレッド  | TPS    | QPS    | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------ | ------ | ----------- |
-    | 入れる         | 600   | 17,831 | 17,831 | 34          |
-    | ポイントセレクト    | 600   | 93,287 | 93,287 | 6           |
-    | 読み書き        | 300   | 29,729 | 1,486  | 202         |
-    | インデックスの更新   | 300   | 9,415  | 9,415  | 32          |
-    | 非インデックスを更新  | 1,200 | 31,092 | 31,092 | 39          |
+    | Transaction model | Threads | TPS    | QPS    | Latency (ms) |
+    | ----------------- | ------- | ------ | ------ | ------------ |
+    | Insert            | 600     | 17,831 | 17,831 | 34           |
+    | Point Select      | 600     | 93,287 | 93,287 | 6            |
+    | Read Write        | 300     | 29,729 | 1,486  | 202          |
+    | Update Index      | 300     | 9,415  | 9,415  | 32           |
+    | Update Non-index  | 1,200   | 31,092 | 31,092 | 39           |
 
--   最大TPSおよびQPS
+-   Maximum TPS and QPS
 
-    TPC-Cのパフォーマンス：
+    TPC-C performance:
 
-    | トランザクションモデル | スレッド  | tpmC   | QPS    | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------ | ------ | ----------- |
-    | TPCC        | 1,200 | 33,394 | 30,188 | 1,048       |
+    | Transaction model | Threads | tpmC   | QPS    | Latency (ms) |
+    | ----------------- | ------- | ------ | ------ | ------------ |
+    | TPCC              | 1,200   | 33,394 | 30,188 | 1,048        |
 
-    Sysbench OLTPのパフォーマンス：
+    Sysbench OLTP performance:
 
-    | トランザクションモデル | スレッド  | TPS    | QPS    | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------ | ------ | ----------- |
-    | 入れる         | 2,000 | 23,633 | 23,633 | 84          |
-    | ポイントセレクト    | 600   | 93,287 | 93,287 | 6           |
-    | 読み書き        | 600   | 30,464 | 1,523  | 394         |
-    | インデックスの更新   | 2,000 | 15,146 | 15,146 | 132         |
-    | 非インデックスを更新  | 2,000 | 34,505 | 34,505 | 58          |
-
-</details>
-
-<details><summary>TiDB：8 vCPU * 4; TiKV：8 vCPU * 6</summary>
-
--   低遅延で最適なパフォーマンス
-
-    TPC-Cのパフォーマンス：
-
-    | トランザクションモデル | スレッド  | tpmC   | QPS    | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------ | ------ | ----------- |
-    | TPCC        | 1,200 | 62,918 | 56,878 | 310         |
-
-    Sysbench OLTPのパフォーマンス：
-
-    | トランザクションモデル | スレッド  | TPS     | QPS     | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------- | ------- | ----------- |
-    | 入れる         | 1,200 | 33,892  | 33,892  | 23          |
-    | ポイントセレクト    | 1,200 | 185,574 | 181,255 | 4           |
-    | 読み書き        | 600   | 59,160  | 2,958   | 127         |
-    | インデックスの更新   | 600   | 18,735  | 18,735  | 21          |
-    | 非インデックスを更新  | 2,400 | 60,629  | 60,629  | 23          |
-
--   最大TPSおよびQPS
-
-    TPC-Cのパフォーマンス：
-
-    | トランザクションモデル | スレッド  | tpmC   | QPS    | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------ | ------ | ----------- |
-    | TPCC        | 2,400 | 65,452 | 59,169 | 570         |
-
-    Sysbench OLTPのパフォーマンス：
-
-    | トランザクションモデル | スレッド  | TPS     | QPS     | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------- | ------- | ----------- |
-    | 入れる         | 4,000 | 47,029  | 47,029  | 43          |
-    | ポイントセレクト    | 1,200 | 185,574 | 181,255 | 4           |
-    | 読み書き        | 1,200 | 60,624  | 3,030   | 197         |
-    | インデックスの更新   | 4,000 | 30,140  | 30,140  | 67          |
-    | 非インデックスを更新  | 4,000 | 68,664  | 68,664  | 29          |
+    | Transaction model | Threads | TPS    | QPS    | Latency (ms) |
+    | ----------------- | ------- | ------ | ------ | ------------ |
+    | Insert            | 2,000   | 23,633 | 23,633 | 84           |
+    | Point Select      | 600     | 93,287 | 93,287 | 6            |
+    | Read Write        | 600     | 30,464 | 1,523  | 394          |
+    | Update Index      | 2,000   | 15,146 | 15,146 | 132          |
+    | Update Non-index  | 2,000   | 34,505 | 34,505 | 58           |
 
 </details>
 
-<details><summary>TiDB：16 vCPU * 2; TiKV：16 vCPU * 3</summary>
+<details>
+<summary>TiDB: 8 vCPU * 4; TiKV: 8 vCPU * 6</summary>
 
--   低遅延で最適なパフォーマンス
+-   Optimal performance with low latency
 
-    TPC-Cのパフォーマンス：
+    TPC-C performance:
 
-    | トランザクションモデル | スレッド  | tpmC   | QPS    | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------ | ------ | ----------- |
-    | TPCC        | 1,200 | 67,941 | 61,419 | 540         |
+    | Transaction model | Threads | tpmC   | QPS    | Latency (ms) |
+    | ----------------- | ------- | ------ | ------ | ------------ |
+    | TPCC              | 1,200   | 62,918 | 56,878 | 310          |
 
-    Sysbench OLTPのパフォーマンス：
+    Sysbench OLTP performance:
 
-    | トランザクションモデル | スレッド  | TPS     | QPS     | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------- | ------- | ----------- |
-    | 入れる         | 1,200 | 35,096  | 35,096  | 34          |
-    | ポイントセレクト    | 1,200 | 228,600 | 228,600 | 5           |
-    | 読み書き        | 600   | 73,150  | 3,658   | 164         |
-    | インデックスの更新   | 600   | 18,886  | 18,886  | 32          |
-    | 非インデックスを更新  | 2,000 | 63,837  | 63,837  | 31          |
+    | Transaction model | Threads | TPS     | QPS     | Latency (ms) |
+    | ----------------- | ------- | ------- | ------- | ------------ |
+    | Insert            | 1,200   | 33,892  | 33,892  | 23           |
+    | Point Select      | 1,200   | 185,574 | 181,255 | 4            |
+    | Read Write        | 600     | 59,160  | 2,958   | 127          |
+    | Update Index      | 600     | 18,735  | 18,735  | 21           |
+    | Update Non-index  | 2,400   | 60,629  | 60,629  | 23           |
 
--   最大TPSおよびQPS
+-   Maximum TPS and QPS
 
-    TPC-Cのパフォーマンス：
+    TPC-C performance:
 
-    | トランザクションモデル | スレッド  | tpmC   | QPS    | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------ | ------ | ----------- |
-    | TPCC        | 1,200 | 67,941 | 61,419 | 540         |
+    | Transaction model | Threads | tpmC   | QPS    | Latency (ms) |
+    | ----------------- | ------- | ------ | ------ | ------------ |
+    | TPCC              | 2,400   | 65,452 | 59,169 | 570          |
 
-    Sysbench OLTPのパフォーマンス：
+    Sysbench OLTP performance:
 
-    | トランザクションモデル | スレッド  | TPS     | QPS     | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------- | ------- | ----------- |
-    | 入れる         | 2,000 | 43,338  | 43,338  | 46          |
-    | ポイントセレクト    | 1,200 | 228,600 | 228,600 | 5           |
-    | 読み書き        | 1,200 | 73,631  | 3,682   | 326         |
-    | インデックスの更新   | 3,000 | 29,576  | 29,576  | 101         |
-    | 非インデックスを更新  | 3,000 | 64,624  | 64,624  | 46          |
+    | Transaction model | Threads | TPS     | QPS     | Latency (ms) |
+    | ----------------- | ------- | ------- | ------- | ------------ |
+    | Insert            | 4,000   | 47,029  | 47,029  | 43           |
+    | Point Select      | 1,200   | 185,574 | 181,255 | 4            |
+    | Read Write        | 1,200   | 60,624  | 3,030   | 197          |
+    | Update Index      | 4,000   | 30,140  | 30,140  | 67           |
+    | Update Non-index  | 4,000   | 68,664  | 68,664  | 29           |
 
 </details>
 
-<details><summary>TiDB：16 vCPU * 4; TiKV：16 vCPU * 6</summary>
+<details>
+<summary>TiDB: 16 vCPU * 2; TiKV: 16 vCPU * 3</summary>
 
--   低遅延で最適なパフォーマンス
+-   Optimal performance with low latency
 
-    TPC-Cのパフォーマンス：
+    TPC-C performance:
 
-    | トランザクションモデル | スレッド  | tpmC    | QPS     | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------- | ------- | ----------- |
-    | TPCC        | 2,400 | 133,164 | 120,380 | 305         |
+    | Transaction model | Threads | tpmC   | QPS    | Latency (ms) |
+    | ----------------- | ------- | ------ | ------ | ------------ |
+    | TPCC              | 1,200   | 67,941 | 61,419 | 540          |
 
-    Sysbench OLTPのパフォーマンス：
+    Sysbench OLTP performance:
 
-    | トランザクションモデル | スレッド  | TPS     | QPS     | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------- | ------- | ----------- |
-    | 入れる         | 2,400 | 69,139  | 69,139  | 22          |
-    | ポイントセレクト    | 2,400 | 448,056 | 448,056 | 4           |
-    | 読み書き        | 1,200 | 145,568 | 7,310   | 97          |
-    | インデックスの更新   | 1,200 | 36,638  | 36,638  | 20          |
-    | 非インデックスを更新  | 4,000 | 125,129 | 125,129 | 17          |
+    | Transaction model | Threads | TPS     | QPS     | Latency (ms) |
+    | ----------------- | ------- | ------- | ------- | ------------ |
+    | Insert            | 1,200   | 35,096  | 35,096  | 34           |
+    | Point Select      | 1,200   | 228,600 | 228,600 | 5            |
+    | Read Write        | 600     | 73,150  | 3,658   | 164          |
+    | Update Index      | 600     | 18,886  | 18,886  | 32           |
+    | Update Non-index  | 2,000   | 63,837  | 63,837  | 31           |
 
--   最大TPSおよびQPS
+-   Maximum TPS and QPS
 
-    TPC-Cのパフォーマンス：
+    TPC-C performance:
 
-    | トランザクションモデル | スレッド  | tpmC    | QPS     | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------- | ------- | ----------- |
-    | TPCC        | 2,400 | 133,164 | 120,380 | 305         |
+    | Transaction model | Threads | tpmC   | QPS    | Latency (ms) |
+    | ----------------- | ------- | ------ | ------ | ------------ |
+    | TPCC              | 1,200   | 67,941 | 61,419 | 540          |
 
-    Sysbench OLTPのパフォーマンス：
+    Sysbench OLTP performance:
 
-    | トランザクションモデル | スレッド  | TPS     | QPS     | レイテンシー（ミリ秒） |
-    | ----------- | ----- | ------- | ------- | ----------- |
-    | 入れる         | 4,000 | 86,242  | 86,242  | 25          |
-    | ポイントセレクト    | 2,400 | 448,056 | 448,056 | 4           |
-    | 読み書き        | 2,400 | 146,526 | 7,326   | 172         |
-    | インデックスの更新   | 6,000 | 58,856  | 58,856  | 51          |
-    | 非インデックスを更新  | 6,000 | 128,601 | 128,601 | 24          |
+    | Transaction model | Threads | TPS     | QPS     | Latency (ms) |
+    | ----------------- | ------- | ------- | ------- | ------------ |
+    | Insert            | 2,000   | 43,338  | 43,338  | 46           |
+    | Point Select      | 1,200   | 228,600 | 228,600 | 5            |
+    | Read Write        | 1,200   | 73,631  | 3,682   | 326          |
+    | Update Index      | 3,000   | 29,576  | 29,576  | 101          |
+    | Update Non-index  | 3,000   | 64,624  | 64,624  | 46           |
+
+</details>
+
+<details>
+<summary>TiDB: 16 vCPU * 4; TiKV: 16 vCPU * 6</summary>
+
+-   Optimal performance with low latency
+
+    TPC-C performance:
+
+    | Transaction model | Threads | tpmC    | QPS     | Latency (ms) |
+    | ----------------- | ------- | ------- | ------- | ------------ |
+    | TPCC              | 2,400   | 133,164 | 120,380 | 305          |
+
+    Sysbench OLTP performance:
+
+    | Transaction model | Threads | TPS     | QPS     | Latency (ms) |
+    | ----------------- | ------- | ------- | ------- | ------------ |
+    | Insert            | 2,400   | 69,139  | 69,139  | 22           |
+    | Point Select      | 2,400   | 448,056 | 448,056 | 4            |
+    | Read Write        | 1,200   | 145,568 | 7,310   | 97           |
+    | Update Index      | 1,200   | 36,638  | 36,638  | 20           |
+    | Update Non-index  | 4,000   | 125,129 | 125,129 | 17           |
+
+-   Maximum TPS and QPS
+
+    TPC-C performance:
+
+    | Transaction model | Threads | tpmC    | QPS     | Latency (ms) |
+    | ----------------- | ------- | ------- | ------- | ------------ |
+    | TPCC              | 2,400   | 133,164 | 120,380 | 305          |
+
+    Sysbench OLTP performance:
+
+    | Transaction model | Threads | TPS     | QPS     | Latency (ms) |
+    | ----------------- | ------- | ------- | ------- | ------------ |
+    | Insert            | 4,000   | 86,242  | 86,242  | 25           |
+    | Point Select      | 2,400   | 448,056 | 448,056 | 4            |
+    | Read Write        | 2,400   | 146,526 | 7,326   | 172          |
+    | Update Index      | 6,000   | 58,856  | 58,856  | 51           |
+    | Update Non-index  | 6,000   | 128,601 | 128,601 | 24           |
 
 </details>
