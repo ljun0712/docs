@@ -123,22 +123,22 @@ CREATE TABLE conflict_error_v1 (
 
 **conflict_error_v1** records all [unique/primary key conflict in the Local-backend](#duplicate-resolution-in-local-backend-mode). There are 2 rows per pair of conflicts.
 
-| Column       | Syntax | Type | Conflict | Description                                                                                                                                  |
-| ------------ | ------ | ---- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| task_id      | ✓      | ✓    | ✓        | The TiDB Lightning task ID that generates this error                                                                                         |
-| create_table | ✓      | ✓    | ✓        | The time at which the error is recorded                                                                                                      |
-| table_name   | ✓      | ✓    | ✓        | The name of the table that contains the error, in the form of ``'`db`.`tbl`'``                                                               |
-| path         | ✓      | ✓    |          | The path of the file that contains the error                                                                                                 |
-| offset       | ✓      | ✓    |          | The byte position in the file where the error is found                                                                                       |
-| error        | ✓      | ✓    |          | The error message                                                                                                                            |
-| context      | ✓      |      |          | The text that surrounds the error                                                                                                            |
-| index_name   |        |      | ✓        | The name of the unique key in conflict. It is `'PRIMARY'` for primary key conflicts.                                                         |
-| key_data     |        |      | ✓        | The formatted key handle of the row that causes the error. The content is for human reference only, and not intended to be machine-readable. |
-| row_data     |        | ✓    | ✓        | The formatted row data that causes the error. The content is for human reference only, and not intended to be machine-readable               |
-| raw_key      |        |      | ✓        | The key of the conflicted KV pair                                                                                                            |
-| raw_value    |        |      | ✓        | The value of the conflicted KV pair                                                                                                          |
-| raw_handle   |        |      | ✓        | The row handle of the conflicted row                                                                                                         |
-| raw_row      |        |      | ✓        | The encoded value of the conflicted row                                                                                                      |
+| Column      | Syntax | Type | Conflict | Description                                                                                                                                  |
+| ----------- | ------ | ---- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| task_id     | ✓      | ✓    | ✓        | The TiDB Lightning task ID that generates this error                                                                                         |
+| create_time | ✓      | ✓    | ✓        | The time at which the error is recorded                                                                                                      |
+| table_name  | ✓      | ✓    | ✓        | The name of the table that contains the error, in the form of ``'`db`.`tbl`'``                                                               |
+| path        | ✓      | ✓    |          | The path of the file that contains the error                                                                                                 |
+| offset      | ✓      | ✓    |          | The byte position in the file where the error is found                                                                                       |
+| error       | ✓      | ✓    |          | The error message                                                                                                                            |
+| context     | ✓      |      |          | The text that surrounds the error                                                                                                            |
+| index_name  |        |      | ✓        | The name of the unique key in conflict. It is `'PRIMARY'` for primary key conflicts.                                                         |
+| key_data    |        |      | ✓        | The formatted key handle of the row that causes the error. The content is for human reference only, and not intended to be machine-readable. |
+| row_data    |        | ✓    | ✓        | The formatted row data that causes the error. The content is for human reference only, and not intended to be machine-readable               |
+| raw_key     |        |      | ✓        | The key of the conflicted KV pair                                                                                                            |
+| raw_value   |        |      | ✓        | The value of the conflicted KV pair                                                                                                          |
+| raw_handle  |        |      | ✓        | The row handle of the conflicted row                                                                                                         |
+| raw_row     |        |      | ✓        | The encoded value of the conflicted row                                                                                                      |
 
 > **Note:**
 >

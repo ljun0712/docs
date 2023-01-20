@@ -12,7 +12,7 @@ The features of `PLAN REPLAYER` are as follows:
 -   Exports the information of a TiDB cluster at an on-site troubleshooting to a ZIP-formatted file for storage.
 -   Imports into a cluster the ZIP-formatted file exported from another TiDB cluster. This file contains the information of the latter TiDB cluster at an on-site troubleshooting.
 
-## Use <code>PLAN REPLAER</code> to export cluster information {#use-code-plan-replaer-code-to-export-cluster-information}
+## Use <code>PLAN REPLAYER</code> to export cluster information {#use-code-plan-replayer-code-to-export-cluster-information}
 
 You can use `PLAN REPLAYER` to save the on-site information of a TiDB cluster. The export interface is as follows:
 
