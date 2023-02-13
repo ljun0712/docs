@@ -667,7 +667,6 @@ Configuration items related to Raftstore.
 ### <code>lock-cf-compact-interval</code> {#code-lock-cf-compact-interval-code}
 
 -   The time interval at which TiKV triggers a manual compaction for the Lock Column Family
--   Default value: `"256MB"`
 -   Default value: `"10m"`
 -   Minimum value: `0`
 
