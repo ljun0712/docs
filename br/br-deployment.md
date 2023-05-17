@@ -3,39 +3,39 @@ title: Deploy and Use BR
 summary: Learn how to deploy and use BR.
 ---
 
-# デプロイを導入して使用する {#deploy-and-use-br}
+# Deploy and Use BR {#deploy-and-use-br}
 
-このドキュメントでは、バックアップと復元（BR）の推奨される展開と、BRを使用してデータをバックアップおよび復元する方法について説明します。
+This document describes the recommended deployment of Backup &#x26; Restore (BR) and how to use BR to back up and restore data.
 
-## BRをデプロイ {#deploy-br}
+## Deploy BR {#deploy-br}
 
-BRを展開する際の推奨プラクティス：
+Recommended practices when deploying BR:
 
--   実稼働環境では、少なくとも8コアのCPUと16GBのメモリを備えたノードにBRをデプロイします。 [LinuxOSのバージョン要件](/hardware-and-software-requirements.md#linux-os-version-requirements)に従って、適切なOSバージョンを選択します。
--   バックアップデータをAmazonS3、GCS、またはAzureBlobStorageに保存します。
--   バックアップと復元に十分なリソースを割り当てます。
+-   In production environments, deploy BR on a node with at least 8 cores CPU and 16 GB memory. Select an appropriate OS version by following [OS and platform requirements](/hardware-and-software-requirements.md#os-and-platform-requirements).
+-   Save backup data to Amazon S3, GCS or Azure Blob Storage.
+-   Allocate sufficient resources for backup and restoration:
 
-    -   BR、TiKVノード、およびバックアップストレージシステムは、バックアップ速度よりも速いネットワーク帯域幅を提供する必要があります。ターゲットクラスタが特に大きい場合、バックアップと復元の速度のしきい値は、バックアップネットワークの帯域幅によって制限されます。
-    -   バックアップストレージシステムは、十分な書き込み/読み取りパフォーマンス（IOPS）も提供する必要があります。そうしないと、バックアップまたは復元中にIOPSがパフォーマンスのボトルネックになる可能性があります。
-    -   TiKVノードには、バックアップ用に少なくとも2つの追加のCPUコアと高性能ディスクが必要です。そうしないと、バックアップがクラスタで実行されているサービスに影響を与える可能性があります。
+    -   BR, TiKV nodes, and the backup storage system should provide network bandwidth that is greater than the backup speed. If the target cluster is particularly large, the threshold of backup and restoration speed is limited by the bandwidth of the backup network.
+    -   The backup storage system should also provide sufficient write/read performance (IOPS). Otherwise, the IOPS might become a performance bottleneck during backup or restoration.
+    -   TiKV nodes need to have at least two additional CPU cores and high performance disks for backups. Otherwise, the backup might have an impact on the services running on the cluster.
 
-> **注**：
+> **Note:**
 >
-> -   ネットワークファイルシステム（NFS）がBRまたはTiKVノードにマウントされていない場合、またはAmazon S3、GCS、またはAzure Blob Storageプロトコルをサポートする外部ストレージを使用している場合、BRによってバックアップされるデータは各TiKVノードで生成されます。 BRはリーダーレプリカのみをバックアップするため、リーダーのサイズに基づいて各ノードで予約されているスペースを見積もる必要があります。 TiDBはデフォルトで負荷分散にリーダー数を使用するため、リーダーのサイズは大きく異なる可能性があります。これにより、バックアップデータが各ノードに不均一に分散されるという問題が発生する可能性があります。
-> -   バックアップデータは各ノードのローカルファイルシステムに分散しているため、**これはBRを展開するための推奨される方法ではないことに注意してください**。バックアップデータを収集すると、データの冗長性と運用および保守の問題が発生する可能性があります。一方、バックアップデータを収集する直前にデータを復元すると、 `SST file not found`エラーが発生します。
+> -   If no Network File System (NFS) is mounted to a BR or TiKV node, or if you use external storage that supports Amazon S3, GCS, or Azure Blob Storage protocols, the data backed up by BR is generated at each TiKV node. Because BR only backs up the leader replica, you need to estimate the space reserved on each node based on the leader size. Because TiDB uses the leader count for load balancing by default, leaders can greatly differ in size. This might result in the issue that the backup data is unevenly distributed on each node.
+> -   **Note that this is not the recommended way to deploy BR**, because the backup data are scattered in the local file system of each node. Collecting the backup data might result in data redundancy and operation and maintenance problems. Meanwhile, if you restore data directly before collecting the backup data, you will encounter the `SST file not found` error.
 
-## BRを使用する {#use-br}
+## Use BR {#use-br}
 
-現在、BRツールを実行するために次のメソッドがサポートされています。
+Currently, the following methods are supported to run the BR tool:
 
-### SQLステートメントを使用する {#use-sql-statements}
+### Use SQL statements {#use-sql-statements}
 
-TiDBは、 [`BACKUP`](/sql-statements/sql-statement-backup.md)つと[`RESTORE`](/sql-statements/sql-statement-restore.md)のSQLステートメントの両方をサポートします。ステートメント[`SHOW BACKUPS| RESTORE`](/sql-statements/sql-statement-show-backups.md)を使用して、これらの操作の進行状況を監視できます。
+TiDB supports both [`BACKUP`](/sql-statements/sql-statement-backup.md) and [`RESTORE`](/sql-statements/sql-statement-restore.md) SQL statements. You can monitor the progress of these operations using the statement [`SHOW BACKUPS|RESTORES`](/sql-statements/sql-statement-show-backups.md).
 
-### コマンドラインツールを使用する {#use-the-command-line-tool}
+### Use the command-line tool {#use-the-command-line-tool}
 
-詳細については、 [バックアップと復元にBRコマンドラインを使用する](/br/use-br-command-line-tool.md)を参照してください。
+For details, see [Use BR Command-line for Backup and Restoration](/br/use-br-command-line-tool.md).
 
-### Kubernetes環境でBRを使用する {#use-br-in-the-kubernetes-environment}
+### Use BR in the Kubernetes environment {#use-br-in-the-kubernetes-environment}
 
-Kubernetes環境では、 TiDB Operatorを使用してTiDBクラスタデータをAmazonS3、GCS、または永続ボリュームにバックアップし、そのようなシステムのバックアップデータからデータを復元できます。詳細については、 [TiDB Operatorを使用したデータのバックアップと復元](https://docs.pingcap.com/tidb-in-kubernetes/stable/backup-restore-overview)を参照してください。
+In a Kubernetes environment, you can use TiDB Operator to back up TiDB cluster data to Amazon S3, GCS or persistent volumes, and restore data from the backup data in such systems. For details, see [Back Up and Restore Data Using TiDB Operator](https://docs.pingcap.com/tidb-in-kubernetes/stable/backup-restore-overview).

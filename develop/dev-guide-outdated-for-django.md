@@ -4,38 +4,36 @@ summary: Learn how to build a simple Python application using TiDB and Django.
 aliases: ['/appdev/dev/for-django']
 ---
 
-# Djangoのアプリ開発 {#app-development-for-django}
+# App Development for Django {#app-development-for-django}
 
-> **ノート：**
+> **Note:**
 >
-> このドキュメントはアーカイブされています。これは、このドキュメントがその後更新されないことを示しています。詳細については、 [開発者ガイドの概要](/develop/dev-guide-overview.md)を参照してください。
+> This legacy document is outdated and will not be updated thereafter. You can see [Developer Guide Overview](/develop/dev-guide-overview.md) for more details.
 
-このチュートリアルでは、TiDBとDjangoに基づいて単純なPythonアプリケーションを構築する方法を示します。ここで構築するサンプルアプリケーションは、顧客および注文情報を追加、照会、および更新できる単純なCRMツールです。
+This tutorial shows you how to build a simple Python application based on TiDB and Django. The sample application to build here is a simple CRM tool where you can add, query, and update customer and order information.
 
-## 手順1.TiDBクラスタを開始します {#step-1-start-a-tidb-cluster}
+## Step 1. Start a TiDB cluster {#step-1-start-a-tidb-cluster}
 
-ローカルストレージで疑似TiDBクラスタを開始します。
-
-{{< copyable "" >}}
+Start a pseudo TiDB cluster on your local storage:
 
 ```bash
 docker run -p 127.0.0.1:$LOCAL_PORT:4000 pingcap/tidb:v5.1.0
 ```
 
-上記のコマンドは、モックTiKVを使用して一時的な単一ノードクラスタを開始します。クラスタはポート`$LOCAL_PORT`でリッスンします。クラスタが停止した後、データベースにすでに加えられた変更は保持されません。
+The above command starts a temporary and single-node cluster with mock TiKV. The cluster listens on the port `$LOCAL_PORT`. After the cluster is stopped, any changes already made to the database are not persisted.
 
-> **ノート：**
+> **Note:**
 >
-> 「実際の」TiDBクラスタを実稼働環境にデプロイするには、次のガイドを参照してください。
+> To deploy a "real" TiDB cluster for production, see the following guides:
 >
-> -   [オンプレミスにデプロイを使用してTiDBを導入する](https://docs.pingcap.com/tidb/v5.1/production-deployment-using-tiup)
-> -   [KubernetesにTiDBをデプロイ](https://docs.pingcap.com/tidb-in-kubernetes/stable)
+> -   [Deploy TiDB using TiUP for On-Premises](https://docs.pingcap.com/tidb/v5.1/production-deployment-using-tiup)
+> -   [Deploy TiDB on Kubernetes](https://docs.pingcap.com/tidb-in-kubernetes/stable)
 >
-> また、無料トライアルを提供するフルマネージドのサービスとしてのデータベース（ [TiDB Cloudを使用する](https://pingcap.com/products/tidbcloud/) ）を使用することもできます。
+> You can also [use TiDB Cloud](https://pingcap.com/products/tidbcloud/), a fully-managed Database-as-a-Service (DBaaS) of TiDB.
 
-## ステップ2.データベースを作成する {#step-2-create-a-database}
+## Step 2. Create a database {#step-2-create-a-database}
 
-1.  SQLシェルで、アプリケーションが使用する`django`のデータベースを作成します。
+1.  In the SQL shell, create the `django` database that your application will use:
 
     {{< copyable "" >}}
 
@@ -43,7 +41,7 @@ docker run -p 127.0.0.1:$LOCAL_PORT:4000 pingcap/tidb:v5.1.0
     CREATE DATABASE django;
     ```
 
-2.  アプリケーションのSQLユーザーを作成します。
+2.  Create a SQL user for your application:
 
     {{< copyable "" >}}
 
@@ -51,9 +49,9 @@ docker run -p 127.0.0.1:$LOCAL_PORT:4000 pingcap/tidb:v5.1.0
     CREATE USER <username> IDENTIFIED BY <password>;
     ```
 
-    ユーザー名とパスワードをメモします。プロジェクトを初期化するときに、アプリケーションコードでそれらを使用します。
+    Take note of the username and password. You will use them in your application code when initializing the project.
 
-3.  作成したSQLユーザーに必要な権限を付与します。
+3.  Grant necessary permissions to the SQL user you have just created:
 
     {{< copyable "" >}}
 
@@ -61,11 +59,11 @@ docker run -p 127.0.0.1:$LOCAL_PORT:4000 pingcap/tidb:v5.1.0
     GRANT ALL ON django.* TO <username>;
     ```
 
-## ステップ3.仮想環境を設定し、プロジェクトを初期化します {#step-3-set-virtual-environments-and-initialize-the-project}
+## Step 3. Set virtual environments and initialize the project {#step-3-set-virtual-environments-and-initialize-the-project}
 
-1.  Pythonの依存関係およびパッケージマネージャーである[詩](https://python-poetry.org/docs/)を使用して、仮想環境を設定し、プロジェクトを初期化します。
+1.  Use [Poetry](https://python-poetry.org/docs/), a dependency and package manager in Python, to set virtual environments and initialize the project.
 
-    詩は、システムの依存関係を他の依存関係から分離し、依存関係の汚染を回避することができます。次のコマンドを使用して、Poetryをインストールします。
+    Poetry can isolate system dependencies from other dependencies and avoid dependency pollution. Use the following command to install Poetry.
 
     {{< copyable "" >}}
 
@@ -73,7 +71,7 @@ docker run -p 127.0.0.1:$LOCAL_PORT:4000 pingcap/tidb:v5.1.0
     pip install --user poetry
     ```
 
-2.  Poetryを使用して開発環境を初期化します。
+2.  Initialize the development environment using Poetry:
 
     {{< copyable "" >}}
 
@@ -89,7 +87,7 @@ docker run -p 127.0.0.1:$LOCAL_PORT:4000 pingcap/tidb:v5.1.0
     poetry shell
     ```
 
-3.  構成ファイルを変更します。 `tidb_example/settings.py`の構成は次のとおりです。
+3.  Modify the configuration file. The configuration in `tidb_example/settings.py` is as follows.
 
     {{< copyable "" >}}
 
@@ -106,7 +104,7 @@ docker run -p 127.0.0.1:$LOCAL_PORT:4000 pingcap/tidb:v5.1.0
     DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
     ```
 
-    上記の構成を次のように変更します。これは、TiDBへの接続に使用されます。
+    Modify the configuration above as follows. This is used for connection to TiDB.
 
     {{< copyable "" >}}
 
@@ -127,11 +125,11 @@ docker run -p 127.0.0.1:$LOCAL_PORT:4000 pingcap/tidb:v5.1.0
     DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
     ```
 
-## ステップ4.アプリケーションロジックを記述します {#step-4-write-the-application-logic}
+## Step 4. Write the application logic {#step-4-write-the-application-logic}
 
-アプリケーションのデータベース接続を構成した後、アプリケーションの構築を開始できます。アプリケーションロジックを作成するには、モデルを構築し、コントローラーを構築し、URLルートを定義する必要があります。
+After you have configured the application's database connection, you can start building out the application. To write the application logic, you need to build the models, build the controller, and define the URL routes.
 
-1.  `models.py`というファイルで定義されているモデルをビルドします。以下のサンプルコードをコピーして、新しいファイルに貼り付けることができます。
+1.  Build models that are defined in a file called `models.py`. You can copy the sample code below and paste it into a new file.
 
     {{< copyable "" >}}
 
@@ -144,7 +142,7 @@ docker run -p 127.0.0.1:$LOCAL_PORT:4000 pingcap/tidb:v5.1.0
         price = models.FloatField()
     ```
 
-2.  `views.py`というファイルにクラスベースのビューを作成します。以下のサンプルコードをコピーして、新しいファイルに貼り付けることができます。
+2.  Build class-based views in a file called `views.py`. You can copy the sample code below and paste it into a new file.
 
     {{< copyable "" >}}
 
@@ -208,7 +206,7 @@ docker run -p 127.0.0.1:$LOCAL_PORT:4000 pingcap/tidb:v5.1.0
             return HttpResponse(status=200)
     ```
 
-3.  `urls.py`というファイルでURLルートを定義します。 `django-admin`コマンドラインツールは、Djangoプロジェクトを作成するときにこのファイルを生成したため、ファイルはすでに`tidb_example/tidb_example`に存在しているはずです。以下のサンプルコードをコピーして、既存の`urls.py`ファイルに貼り付けることができます。
+3.  Define URL routes in a file called `urls.py`. The `django-admin` command-line tool has generated this file when you create the Django project, so the file should already exist in `tidb_example/tidb_example`. You can copy the sample code below and paste it into the existing `urls.py` file.
 
     {{< copyable "" >}}
 
@@ -229,11 +227,9 @@ docker run -p 127.0.0.1:$LOCAL_PORT:4000 pingcap/tidb:v5.1.0
     ]
     ```
 
-## ステップ5.Djangoアプリケーションをセットアップして実行します {#step-5-set-up-and-run-the-django-application}
+## Step 5. Set up and run the Django application {#step-5-set-up-and-run-the-django-application}
 
-最上位の`tidb_example`ディレクトリで、 [`manage.py`](https://docs.djangoproject.com/en/3.1/ref/django-admin/)スクリプトを使用して、アプリケーションのデータベースを初期化する[Djangoの移行](https://docs.djangoproject.com/en/3.1/topics/migrations/)を作成します。
-
-{{< copyable "" >}}
+In the top `tidb_example` directory, use the [`manage.py`](https://docs.djangoproject.com/en/3.1/ref/django-admin/) script to create [Django migrations](https://docs.djangoproject.com/en/3.1/topics/migrations/) that initialize the database for the application:
 
 ```bash
 python manage.py makemigrations tidb_example
@@ -241,17 +237,13 @@ python manage.py migrate tidb_example
 python manage.py migrate
 ```
 
-次に、アプリケーションを起動します。
-
-{{< copyable "" >}}
+Then start the application:
 
 ```python
 python3 manage.py runserver 0.0.0.0:8000
 ```
 
-いくつかのサンプルデータを挿入してアプリケーションをテストするには、次のコマンドを実行します。
-
-{{< copyable "" >}}
+To test the application by inserting some example data, run the following commands:
 
 ```bash
 curl --request POST '127.0.0.1:8000/order/' \
@@ -265,9 +257,7 @@ curl --request PATCH '127.0.0.1:8000/order/' --data-raw '{ "oid": 1, "price": 31
 curl --request GET '127.0.0.1:8000/order/' --data-raw '{ "oid": 1 }'
 ```
 
-データの挿入が成功したかどうかを確認するには、SQLシェルでターミナルを開いて以下を確認します。
-
-{{< copyable "" >}}
+To verify whether the data insertion is successful, open the terminal with the SQL shell to check:
 
 ```sql
 MySQL root@127.0.0.1:(none)> select * from django.tidb_example_orders;
@@ -280,9 +270,7 @@ MySQL root@127.0.0.1:(none)> select * from django.tidb_example_orders;
 Time: 0.008s
 ```
 
-上記の結果は、データ挿入が成功したことを示しています。次に、挿入されたデータを削除できます。
-
-{{< copyable "" >}}
+The result above shows that the data insertion is successful. Then you can delete the inserted data:
 
 ```bash
 curl --request DELETE '127.0.0.1:8000/order/' --data-raw '{ "oid": 1 }'

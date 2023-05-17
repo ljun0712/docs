@@ -3,17 +3,17 @@ title: Back Up and Restore RawKV
 summary: Learn how to back up and restore RawKV using BR.
 ---
 
-# RawKVのバックアップと復元 {#back-up-and-restore-rawkv}
+# Back Up and Restore RawKV {#back-up-and-restore-rawkv}
 
-Backup＆Restore（BR）は、特にRawKV（TiKVおよびPDで使用される）のバックアップと復元をサポートします。このドキュメントでは、RawKVをバックアップおよび復元する方法について説明します。
+Backup &#x26; Restore (BR) supports data backup and restore for products that use RawKV (TiKV and PD) without TiDB. This document describes how to back up and restore RawKV.
 
-> **警告：**
+> **Warning:**
 >
-> この機能は、徹底的にテストされていないが、実験中です。実稼働環境で使用することはお勧めし**ません**。
+> This feature is in the experiment, without being thoroughly tested. It is **NOT** recommended that you use it in the production environment.
 
-## RawKVをバックアップする {#back-up-rawkv}
+## Back up RawKV {#back-up-rawkv}
 
-一部のシナリオでは、TiKVはTiDBとは独立して実行される場合があります。そのため、BRはTiDBレイヤーのバイパスとTiKVでのデータのバックアップをサポートしています。
+In some scenarios, TiKV might run independently of TiDB. Given that, BR supports bypassing the TiDB layer and backing up data in TiKV.
 
 {{< copyable "" >}}
 
@@ -27,26 +27,26 @@ br backup raw --pd $PD_ADDR \
     --cf default
 ```
 
-上記のコマンドは、デフォルトのCFの`[0x31, 0x3130303030303030)`から`$BACKUP_DIR`までのすべてのキーをバックアップします。
+The preceding command backs up all keys between `[0x31, 0x3130303030303030)` in the default CF to `$BACKUP_DIR`.
 
-このコマンドでは、 `--start`と`--end`の値は、TiKVに送信される前に、 `--format`で指定された形式を使用してデコードされます。現在、次の形式を使用できます。
+In this command, the values of `--start` and `--end` are decoded using the format specified by `--format` before being sent to TiKV. Currently, the following formats are available:
 
--   &quot;raw&quot;：入力文字列はバイナリ形式のキーとして直接エンコードされます。
--   「hex」：デフォルトのエンコード形式。入力文字列は16進数として扱われます。
--   &quot;escaped&quot;：最初に入力文字列をエスケープ（バックスラッシュ）してから、バイナリ形式（たとえば、 `abc\xFF\x00\r\n` ）にエンコードします。
+-   "raw": The input string is directly encoded as a key in binary format.
+-   "hex": The default encoding format. The input string is treated as a hexadecimal number.
+-   "escaped": First escape (backslash) the input string, and then encode it into binary format, for example, `abc\xFF\x00\r\n`.
 
-> **ノート：**
+> **Note:**
 >
-> -   ローカルストレージを使用する場合は、すべてのバックアップSSTファイルを`--storage`で指定されたパスのすべてのTiKVノードにコピーする**必要があり**ます。各TiKVノードが最終的にSSTファイルの一部を読み取るだけでよい場合でも、次の理由により、すべてのノードが完全なアーカイブに完全にアクセスできる必要があります。
+> -   If you use the local storage, you **should** copy all back up SST files to every TiKV node in the path specified by `--storage`. Even if each TiKV node eventually only needs to read a part of the SST files, they all need full access to the complete archive because:
 >
->     -   データは複数のピアに複製されます。 SSTを取り込むとき、これらのファイルはすべてのピアに存在する必要があります。これは、単一ノードからの読み取りで十分なバックアップとは異なります。
->     -   復元中に各ピアが分散する場所はランダムです。どのノードがどのファイルを読み取るかは事前にわかりません。
-> -   これらは、共有ストレージを使用して回避できます。たとえば、ローカルパスにNFSをマウントしたり、S3を使用したりできます。ネットワークストレージを使用すると、すべてのノードがすべてのSSTファイルを自動的に読み取ることができます。この場合、前述の警告は適用されなくなります。
-> -   また、1つのクラスタに対して同時に実行できる復元操作は1つだけであることに注意してください。そうしないと、予期しない動作が発生する可能性があります。詳細については、 [よくある質問](/br/backup-and-restore-faq.md#can-i-use-multiple-br-processes-at-the-same-time-to-restore-the-data-of-a-single-cluster)を参照してください。
+>     -   Data is replicated into multiple peers. When ingesting SSTs, these files have to be present on all peers. This is unlike backup where reading from a single node is enough.
+>     -   Where each peer is scattered to during restoration is random. You have no idea in advance which node will read which file.
+> -   These can be avoided using shared storage, for example, mounting an NFS on the local path, or using S3. With network storage, every node can automatically read every SST file. In this case, the preceding caveats no longer apply.
+> -   Also, note that you can only run one restoration operation for a single cluster at the same time. Otherwise, unexpected behaviors might occur. For details, see [FAQs](/br/backup-and-restore-faq.md#can-i-use-multiple-br-processes-at-the-same-time-to-restore-the-data-of-a-single-cluster).
 
-## RawKVを復元する {#restore-rawkv}
+## Restore RawKV {#restore-rawkv}
 
-[RawKVのバックアップ](#back-up-rawkv)と同様に、次のコマンドを実行してRawKVを復元できます。
+Similar to [backing up RawKV](#back-up-rawkv), you can run the following command to restore RawKV:
 
 {{< copyable "" >}}
 
@@ -60,4 +60,4 @@ br restore raw --pd $PD_ADDR \
     --cf default
 ```
 
-この例では、範囲`[0x31, 0x3130303030303030)`のすべてのバックアップされたキーがTiKVクラスタに復元されます。これらのキーのコーディング形式は、バックアッププロセス中のキーのコーディング形式と同じです。
+In this example, all the backed up keys in the range `[0x31, 0x3130303030303030)` are restored to the TiKV cluster. The coding formats of these keys are identical to that of keys during the backup process.
