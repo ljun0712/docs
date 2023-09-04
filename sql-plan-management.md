@@ -3,29 +3,39 @@ title: SQL Plan Management (SPM)
 summary: Learn about SQL Plan Management in TiDB.
 ---
 
-# SQL計画管理（SPM） {#sql-plan-management-spm}
+# SQL Plan Management (SPM) {#sql-plan-management-spm}
 
-SQLプラン管理は、SQLバインディングを実行して、SQL実行プランを手動で妨害する一連の関数です。これらの機能には、SQLバインディング、ベースラインキャプチャ、およびベースライン進化が含まれます。
+SQL Plan Management is a set of functions that execute SQL bindings to manually interfere with SQL execution plans. These functions include SQL binding, baseline capturing, and baseline evolution.
 
-## SQLバインディング {#sql-binding}
+## SQL binding {#sql-binding}
 
-SQLバインディングはSPMの基礎です。 [オプティマイザーのヒント](/optimizer-hints.md)のドキュメントでは、ヒントを使用して特定の実行プランを選択する方法を紹介しています。ただし、SQLステートメントを変更せずに実行の選択を妨害する必要がある場合があります。 SQLバインディングを使用すると、SQLステートメントを変更せずに指定された実行プランを選択できます。
+An SQL binding is the basis of SPM. The [Optimizer Hints](/optimizer-hints.md) document introduces how to select a specific execution plan using hints. However, sometimes you need to interfere with execution selection without modifying SQL statements. With SQL bindings, you can select a specified execution plan without modifying SQL statements.
 
-### バインディングを作成する {#create-a-binding}
+<CustomContent platform="tidb">
+  > **Note:**
+  >
+  > To use SQL bindings, you need to have the `SUPER` privilege. If TiDB prompts that you do not have sufficient privileges, see [Privilege Management](/privilege-management.md) to add the required privileges.
+</CustomContent>
 
-{{< copyable "" >}}
+<CustomContent platform="tidb-cloud">
+  > **Note:**
+  >
+  > To use SQL bindings, you need to have the `SUPER` privilege. If TiDB prompts that you do not have sufficient privileges, see [Privilege Management](https://docs.pingcap.com/tidb/stable/privilege-management) to add the required privileges.
+</CustomContent>
+
+### Create a binding {#create-a-binding}
 
 ```sql
 CREATE [GLOBAL | SESSION] BINDING FOR BindableStmt USING BindableStmt
 ```
 
-このステートメントは、SQL実行プランをGLOBALまたはSESSIONレベルでバインドします。現在、 `SELECT` `DELETE` `SELECT` `INSERT` `REPLACE`れて`UPDATE`ます。
+This statement binds SQL execution plans at the GLOBAL or SESSION level. Currently, supported bindable SQL statements (BindableStmt) in TiDB include `SELECT`, `DELETE`, `UPDATE`, and `INSERT` / `REPLACE` with `SELECT` subqueries.
 
-> **ノート：**
+> **Note:**
 >
-> バインディングは、手動で追加されたヒントよりも優先されます。したがって、対応するバインディングが存在するときにヒントを含むステートメントを実行すると、オプティマイザーの動作を制御するヒントは有効になりません。ただし、他の種類のヒントは引き続き有効です。
+> Bindings have higher priority over manually added hints. Therefore, when you execute a statement containing a hint while a corresponding binding is present, the hint controlling the behavior of the optimizer does not take effect. However, other types of hints are still effective.
 
-具体的には、これらのステートメントの2つのタイプは、構文の競合のために実行プランにバインドできません。次の例を参照してください。
+Specifically, two types of these statements cannot be bound to execution plans due to syntax conflicts. See the following examples:
 
 ```sql
 -- Type one: Statements that get the Cartesian product by using the `JOIN` keyword and not specifying the associated columns with the `USING` keyword.
@@ -41,7 +51,7 @@ USING
     DELETE FROM t1 USING t1 JOIN t2 ON t1.a = t2.a;
 ```
 
-同等のステートメントを使用することで、構文の競合を回避できます。たとえば、上記のステートメントを次のように書き直すことができます。
+You can bypass syntax conflicts by using equivalent statements. For example, you can rewrite the above statements in the following ways:
 
 ```sql
 -- First rewrite of type one statements: Add a `USING` clause for the `JOIN` keyword.
@@ -63,11 +73,11 @@ using
     DELETE t1 FROM t1 JOIN t2 ON t1.a = t2.a;
 ```
 
-> **ノート：**
+> **Note:**
 >
-> `SELECT` `REPLACE`サブクエリを含む`INSERT`ステートメントの実行プランバインディングを作成する場合、 `INSERT` / `REPLACE`キーワードの後ではなく、 `SELECT`サブクエリでバインドするオプティマイザヒントを指定する必要があります。そうしないと、オプティマイザのヒントが意図したとおりに有効になりません。
+> When creating execution plan bindings for `INSERT` / `REPLACE` statements with `SELECT` subqueries, you need to specify the optimizer hints you want to bind in the `SELECT` subquery, not after the `INSERT` / `REPLACE` keyword. Otherwise, the optimizer hints do not take effect as intended.
 
-次に2つの例を示します。
+Here are two examples:
 
 ```sql
 -- The hint takes effect in the following statement.
@@ -83,9 +93,9 @@ using
     INSERT /*+ use_index(@sel_1 t2, a) */ INTO t1 SELECT * FROM t2 WHERE a > 1 AND b = 1;
 ```
 
-実行プランバインディングを作成するときにスコープを指定しない場合、デフォルトのスコープはSESSIONです。 TiDBオプティマイザは、バインドされたSQLステートメントを正規化し、それらをシステムテーブルに格納します。 SQLクエリを処理するときに、正規化されたステートメントがシステムテーブル内のバインドされたSQLステートメントの1つと一致し、システム変数`tidb_use_plan_baselines`が`on` （デフォルト値は`on` ）に設定されている場合、TiDBはこのステートメントに対応するオプティマイザーヒントを使用します。一致する実行プランが複数ある場合、オプティマイザーはバインドするのに最もコストのかからないプランを選択します。
+If you do not specify the scope when creating an execution plan binding, the default scope is SESSION. The TiDB optimizer normalizes bound SQL statements and stores them in the system table. When processing SQL queries, if a normalized statement matches one of the bound SQL statements in the system table and the system variable `tidb_use_plan_baselines` is set to `on` (the default value is `on`), TiDB then uses the corresponding optimizer hint for this statement. If there are multiple matchable execution plans, the optimizer chooses the least costly one to bind.
 
-`Normalization`は、SQLステートメントの定数を変数パラメーターに変換し、SQLステートメントのスペースと改行の標準化された処理を使用して、クエリで参照されるテーブルのデータベースを明示的に指定するプロセスです。次の例を参照してください。
+`Normalization` is a process that converts a constant in an SQL statement to a variable parameter and explicitly specifies the database for tables referenced in the query, with standardized processing on the spaces and line breaks in the SQL statement. See the following example:
 
 ```sql
 SELECT * FROM t WHERE a >    1
@@ -93,11 +103,11 @@ SELECT * FROM t WHERE a >    1
 SELECT * FROM test . t WHERE a > ?
 ```
 
-> **ノート：**
+> **Note:**
 >
-> コンマ`,`で結合された複数の定数は、 `?`ではなく`...`として正規化されます。
+> Multiple constants joined by commas `,` are normalized as `...` instead of `?`.
 >
-> 例えば：
+> For example:
 >
 > ```sql
 > SELECT * FROM t limit 10
@@ -111,11 +121,74 @@ SELECT * FROM test . t WHERE a > ?
 > SELECT * FROM test . t WHERE a IN ( ... )
 > ```
 >
-> バインディングが作成されると、TiDBは、単一の定数を含むSQLステートメントと、コンマで結合された複数の定数を含むSQLステートメントを異なる方法で処理します。したがって、2つのSQLタイプのバインディングを別々に作成する必要があります。
+> When bindings are created, TiDB treats SQL statements that contain a single constant and SQL statements that contain multiple constants joined by commas differently. Therefore, you need to create bindings for the two SQL types separately.
+>
+> For example:
+>
+> ```sql
+> CREATE TABLE t(a INT, b INT, KEY idx(a));
+> CREATE SESSION BINDING for SELECT * FROM t WHERE a IN (?) USING SELECT /*+ use_index(t, idx) */ * FROM t WHERE a in (?);
+> SHOW BINDINGS;
+> +-----------------------------------------------+----------------------------------------------------------------------+------------+---------+-------------------------+-------------------------+---------+--------------------+--------+------------------------------------------------------------------+-------------+
+> | Original_sql                                  | Bind_sql                                                             | Default_db | Status  | Create_time             | Update_time             | Charset | Collation          | Source | Sql_digest                                                       | Plan_digest |
+> +-----------------------------------------------+----------------------------------------------------------------------+------------+---------+-------------------------+-------------------------+---------+--------------------+--------+------------------------------------------------------------------+-------------+
+> | SELECT * FROM `test` . `t` WHERE `a` IN ( ? ) | SELECT /*+ use_index(`t` `idx`)*/ * FROM `test`.`t` WHERE `a` IN (?) | test       | enabled | 2023-08-23 14:15:31.472 | 2023-08-23 14:15:31.472 | utf8mb4 | utf8mb4_general_ci | manual | 8b9c4e6ab8fad5ba29b034311dcbfc8a8ce57dde2e2d5d5b65313b90ebcdebf7 |             |
+> +-----------------------------------------------+----------------------------------------------------------------------+------------+---------+-------------------------+-------------------------+---------+--------------------+--------+------------------------------------------------------------------+-------------+
+> SELECT * FROM t WHERE a IN (1);
+> SELECT @@LAST_PLAN_FROM_BINDING;
+> +--------------------------+
+> | @@LAST_PLAN_FROM_BINDING |
+> +--------------------------+
+> |                        1 |
+> +--------------------------+
+> SELECT * FROM t WHERE a IN (1,2);
+> SELECT @@LAST_PLAN_FROM_BINDING;
+> +--------------------------+
+> | @@LAST_PLAN_FROM_BINDING |
+> +--------------------------+
+> |                        0 |
+> +--------------------------+
+> CREATE SESSION BINDING for SELECT * FROM t WHERE a IN (?,?) USING SELECT /*+ use_index(t, idx) */ * FROM t WHERE a IN (?,?);
+> show bindings;
+> +-------------------------------------------------+------------------------------------------------------------------------+------------+---------+-------------------------+-------------------------+---------+--------------------+--------+------------------------------------------------------------------+-------------+
+> | Original_sql                                    | Bind_sql                                                               | Default_db | Status  | Create_time             | Update_time             | Charset | Collation          | Source | Sql_digest                                                       | Plan_digest |
+> +-------------------------------------------------+------------------------------------------------------------------------+------------+---------+-------------------------+-------------------------+---------+--------------------+--------+------------------------------------------------------------------+-------------+
+> | SELECT * FROM `test` . `t` WHERE `a` IN ( ... ) | SELECT /*+ use_index(`t` `idx`)*/ * FROM `test`.`t` WHERE `a` IN (?,?) | test       | enabled | 2023-08-23 14:16:30.762 | 2023-08-23 14:16:30.762 | utf8mb4 | utf8mb4_general_ci | manual | da38bf216db4a53e1a1e01c79ffa42306419442ad7238480bb7ac510723c8bdf |             |
+> | SELECT * FROM `test` . `t` WHERE `a` IN ( ? )   | SELECT /*+ use_index(`t` `idx`)*/ * FROM `test`.`t` WHERE `a` IN (?)   | test       | enabled | 2023-08-23 14:15:31.472 | 2023-08-23 14:15:31.472 | utf8mb4 | utf8mb4_general_ci | manual | 8b9c4e6ab8fad5ba29b034311dcbfc8a8ce57dde2e2d5d5b65313b90ebcdebf7 |             |
+> +-------------------------------------------------+------------------------------------------------------------------------+------------+---------+-------------------------+-------------------------+---------+--------------------+--------+------------------------------------------------------------------+-------------+
+> SELECT * FROM t WHERE a IN (1,2);
+> SELECT @@LAST_PLAN_FROM_BINDING;
+> +--------------------------+
+> | @@LAST_PLAN_FROM_BINDING |
+> +--------------------------+
+> |                        1 |
+> +--------------------------+
+> SELECT * FROM t WHERE a IN (1,2,3);
+> SELECT @@LAST_PLAN_FROM_BINDING;
+> +--------------------------+
+> | @@LAST_PLAN_FROM_BINDING |
+> +--------------------------+
+> |                        1 |
+> +--------------------------+
+> DROP SESSION BINDING for SELECT * FROM t WHERE a IN (?);
+> SHOW BINDINGS;
+> +-------------------------------------------------+------------------------------------------------------------------------+------------+---------+-------------------------+-------------------------+---------+--------------------+--------+------------------------------------------------------------------+-------------+
+> | Original_sql                                    | Bind_sql                                                               | Default_db | Status  | Create_time             | Update_time             | Charset | Collation          | Source | Sql_digest                                                       | Plan_digest |
+> +-------------------------------------------------+------------------------------------------------------------------------+------------+---------+-------------------------+-------------------------+---------+--------------------+--------+------------------------------------------------------------------+-------------+
+> | SELECT * FROM `test` . `t` WHERE `a` IN ( ... ) | SELECT /*+ use_index(`t` `idx`)*/ * FROM `test`.`t` WHERE `a` IN (?,?) | test       | enabled | 2023-08-23 14:16:30.762 | 2023-08-23 14:16:30.762 | utf8mb4 | utf8mb4_general_ci | manual | da38bf216db4a53e1a1e01c79ffa42306419442ad7238480bb7ac510723c8bdf |             |
+> +-------------------------------------------------+------------------------------------------------------------------------+------------+---------+-------------------------+-------------------------+---------+--------------------+--------+------------------------------------------------------------------+-------------+
+> SELECT * FROM t WHERE a IN (1);
+> SELECT @@LAST_PLAN_FROM_BINDING;
+> +--------------------------+
+> | @@LAST_PLAN_FROM_BINDING |
+> +--------------------------+
+> |                        0 |
+> +--------------------------+
+> ```
 
-SQLステートメントがGLOBALスコープとSESSIONスコープの両方で実行プランをバインドしている場合、オプティマイザーはSESSIONバインディングに遭遇すると、GLOBALスコープでバインドされた実行プランを無視するため、SESSIONスコープでのこのステートメントのバインドされた実行プランは、 GLOBALスコープ。
+When a SQL statement has bound execution plans in both GLOBAL and SESSION scopes, because the optimizer ignores the bound execution plan in the GLOBAL scope when it encounters the SESSION binding, the bound execution plan of this statement in the SESSION scope shields the execution plan in the GLOBAL scope.
 
-例えば：
+For example:
 
 ```sql
 --  Creates a GLOBAL binding and specifies using `sort merge join` in this binding.
@@ -137,43 +210,41 @@ USING
 explain SELECT * FROM t1, t2 WHERE t1.id = t2.id;
 ```
 
-最初の`SELECT`のステートメントが実行されているとき、オプティマイザーはGLOBALスコープのバインディングを介してステートメントに`sm_join(t1, t2)`のヒントを追加します。 `explain`の結果の実行プランの最上位ノードはMergeJoinです。 2番目の`SELECT`ステートメントが実行されているとき、オプティマイザーはGLOBALスコープのバインディングの代わりにSESSIONスコープのバインディングを使用し、ステートメントに`hash_join(t1, t2)`ヒントを追加します。 `explain`の結果の実行プランの最上位ノードはHashJoinです。
+When the first `SELECT` statement is being executed, the optimizer adds the `sm_join(t1, t2)` hint to the statement through the binding in the GLOBAL scope. The top node of the execution plan in the `explain` result is MergeJoin. When the second `SELECT` statement is being executed, the optimizer uses the binding in the SESSION scope instead of the binding in the GLOBAL scope and adds the `hash_join(t1, t2)` hint to the statement. The top node of the execution plan in the `explain` result is HashJoin.
 
-標準化された各SQLステートメントは、一度に`CREATE BINDING`つを使用して作成されたバインディングを1つだけ持つことができます。同じ標準化されたSQLステートメントに対して複数のバインディングが作成されると、最後に作成されたバインディングが保持され、以前のすべてのバインディング（作成および展開）は削除済みとしてマークされます。ただし、セッションバインディングとグローバルバインディングは共存でき、このロジックの影響を受けません。
+Each standardized SQL statement can have only one binding created using `CREATE BINDING` at a time. When multiple bindings are created for the same standardized SQL statement, the last created binding is retained, and all previous bindings (created and evolved) are marked as deleted. But session bindings and global bindings can coexist and are not affected by this logic.
 
-さらに、バインディングを作成する場合、TiDBはセッションがデータベースコンテキストにあることを要求します。つまり、クライアントが接続されたとき、または`use ${database}`が実行されたときにデータベースが指定されます。
+In addition, when you create a binding, TiDB requires that the session is in a database context, which means that a database is specified when the client is connected or `use ${database}` is executed.
 
-元のSQLステートメントとバインドされたステートメントは、正規化とヒントの削除後に同じテキストである必要があります。そうでない場合、バインドは失敗します。次の例を見てください。
+The original SQL statement and the bound statement must have the same text after normalization and hint removal, or the binding will fail. Take the following examples:
 
--   パラメータ化とヒントの削除の前後のテキストが同じであるため、このバインディングは正常に作成できます`SELECT * FROM test . t WHERE a > ?`
+-   This binding can be created successfully because the texts before and after parameterization and hint removal are the same: `SELECT * FROM test . t WHERE a > ?`
 
     ```sql
     CREATE BINDING FOR SELECT * FROM t WHERE a > 1 USING SELECT * FROM t use index  (idx) WHERE a > 2
     ```
 
--   元のSQLステートメントは`SELECT * FROM test . t WHERE a > ?`として処理されるのに対し、バインドされたSQLステートメントは`SELECT * FROM test . t WHERE b > ?`として処理されるため、このバインドは失敗します。
+-   This binding will fail because the original SQL statement is processed as `SELECT * FROM test . t WHERE a > ?`, while the bound SQL statement is processed differently as `SELECT * FROM test . t WHERE b > ?`.
 
     ```sql
     CREATE BINDING FOR SELECT * FROM t WHERE a > 1 USING SELECT * FROM t use index(idx) WHERE b > 2
     ```
 
-> **ノート：**
+> **Note:**
 >
-> `PREPARE`ステートメントおよびバイナリプロトコルで実行されるクエリの場合、 `EXECUTE` / `PREPARE`ステートメントではなく、実際のクエリステートメントの実行プランバインディングを作成する必要があり`EXECUTE` 。
+> For `PREPARE` / `EXECUTE` statements and for queries executed with binary protocols, you need to create execution plan bindings for the real query statements, not for the `PREPARE` / `EXECUTE` statements.
 
-### バインディングを削除します {#remove-binding}
-
-{{< copyable "" >}}
+### Remove binding {#remove-binding}
 
 ```sql
 DROP [GLOBAL | SESSION] BINDING FOR BindableStmt;
 ```
 
-このステートメントは、GLOBALまたはSESSIONレベルで指定された実行プランバインディングを削除します。デフォルトのスコープはSESSIONです。
+This statement removes a specified execution plan binding at the GLOBAL or SESSION level. The default scope is SESSION.
 
-一般に、SESSIONスコープのバインディングは、主にテストまたは特別な状況で使用されます。バインディングをすべてのTiDBプロセスで有効にするには、GLOBALバインディングを使用する必要があります。作成されたSESSIONバインディングは、セッションが閉じる前にSESSIONバインディングがドロップされた場合でも、SESSIONが終了するまで対応するGLOBALバインディングをシールドします。この場合、バインディングは有効にならず、プランはオプティマイザーによって選択されます。
+Generally, the binding in the SESSION scope is mainly used for test or in special situations. For a binding to take effect in all TiDB processes, you need to use the GLOBAL binding. A created SESSION binding shields the corresponding GLOBAL binding until the end of the SESSION, even if the SESSION binding is dropped before the session closes. In this case, no binding takes effect and the plan is selected by the optimizer.
 
-次の例は、SESSIONバインディングがGLOBALバインディングをシールドする[バインディングを作成する](#create-a-binding)の例に基づいています。
+The following example is based on the example in [create binding](#create-a-binding) in which the SESSION binding shields the GLOBAL binding:
 
 ```sql
 -- Drops the binding created in the SESSION scope.
@@ -183,53 +254,47 @@ drop session binding for SELECT * FROM t1, t2 WHERE t1.id = t2.id;
 explain SELECT * FROM t1,t2 WHERE t1.id = t2.id;
 ```
 
-上記の例では、SESSIONスコープのドロップされたバインディングは、GLOBALスコープの対応するバインディングをシールドします。オプティマイザは、ステートメントに`sm_join(t1, t2)`のヒントを追加しません。 `explain`の結果の実行プランの最上位ノードは、このヒントによってMergeJoinに固定されていません。代わりに、コスト見積もりに従って、オプティマイザによって最上位ノードが個別に選択されます。
+In the example above, the dropped binding in the SESSION scope shields the corresponding binding in the GLOBAL scope. The optimizer does not add the `sm_join(t1, t2)` hint to the statement. The top node of the execution plan in the `explain` result is not fixed to MergeJoin by this hint. Instead, the top node is independently selected by the optimizer according to the cost estimation.
 
-> **ノート：**
+> **Note:**
 >
-> `DROP GLOBAL BINDING`を実行すると、現在のtidb-serverインスタンスキャッシュのバインディングが削除され、システムテーブルの対応する行のステータスが「削除済み」に変更されます。他のtidb-serverインスタンスは、対応するバインディングをキャッシュにドロップするために「削除済み」ステータスを読み取る必要があるため、このステートメントはシステムテーブルのレコードを直接削除しません。ステータスが「削除済み」のこれらのシステムテーブルのレコードの場合、100 `bind-info-lease` （デフォルト値は`3s` 、合計`300s` ）間隔ごとに、バックグラウンドスレッドが10より前の`update_time`のバインディングを再利用およびクリアする操作をトリガーします。 `bind-info-lease` （すべてのtidb-serverインスタンスが「削除済み」ステータスを読み取り、キャッシュを更新したことを確認するため）。
+> Executing `DROP GLOBAL BINDING` drops the binding in the current tidb-server instance cache and changes the status of the corresponding row in the system table to 'deleted'. This statement does not directly delete the records in the system table, because other tidb-server instances need to read the 'deleted' status to drop the corresponding binding in their cache. For the records in these system tables with the status of 'deleted', at every 100 `bind-info-lease` (the default value is `3s`, and `300s` in total) interval, the background thread triggers an operation of reclaiming and clearing on the bindings of `update_time` before 10 `bind-info-lease` (to ensure that all tidb-server instances have read the 'deleted' status and updated the cache).
 
-## バインディングステータスの変更 {#change-binding-status}
-
-{{< copyable "" >}}
+## Change binding status {#change-binding-status}
 
 ```sql
 SET BINDING [ENABLED | DISABLED] FOR BindableStmt;
 ```
 
-このステートメントを実行して、バインディングのステータスを変更できます。デフォルトのステータスはENABLEDです。有効なスコープはデフォルトでGLOBALであり、変更できません。
+You can execute this statement to change the status of a binding. The default status is ENABLED. The effective scope is GLOBAL by default and cannot be modified.
 
-このステートメントを実行するときは、バインディングのステータスを`Disabled`から`Enabled`または`Enabled`から`Disabled`にのみ変更できます。ステータス変更に使用できるバインディングがない場合は、 `There are no bindings can be set the status. Please check the SQL text`という警告メッセージが返されます。 `Disabled`ステータスのバインディングは、どのクエリでも使用されないことに注意してください。
+When executing this statement, you can only change the status of a binding from `Disabled` to `Enabled` or from `Enabled` to `Disabled`. If no binding is available for status changes, a warning message is returned, saying `There are no bindings can be set the status. Please check the SQL text`. Note that a binding in `Disabled` status is not used by any query.
 
-### バインディングを表示する {#view-bindings}
-
-{{< copyable "" >}}
+### View bindings {#view-bindings}
 
 ```sql
 SHOW [GLOBAL | SESSION] BINDINGS [ShowLikeOrWhere]
 ```
 
-このステートメントは、実行プランのバインディングを、最新から最早までのバインディング更新時間の順序に従って、GLOBALまたはSESSIONレベルで出力します。デフォルトのスコープはSESSIONです。現在、以下に示すように、 `SHOW BINDINGS`は8つの列を出力します。
+This statement outputs the execution plan bindings at the GLOBAL or SESSION level according to the order of binding update time from the latest to earliest. The default scope is SESSION. Currently `SHOW BINDINGS` outputs eight columns, as shown below:
 
-| 列名           | ノート                                                                                                                                             |
-| :----------- | :---------------------------------------------------------------------------------------------------------------------------------------------- |
-| original_sql | パラメータ化後の元のSQLステートメント                                                                                                                            |
-| bind_sql     | ヒント付きのバインドされたSQLステートメント                                                                                                                         |
-| default_db   | デフォルトのデータベース                                                                                                                                    |
-| 状態           | 有効（v6.0からの使用ステータスの置き換え）、無効、削除、無効、拒否、および保留中の検証を含むステータス                                                                                           |
-| create_time  | 時間を作る                                                                                                                                           |
-| update_time  | 更新時間                                                                                                                                            |
-| 文字コード        | キャラクターセット                                                                                                                                       |
-| 照合順序         | 注文ルール                                                                                                                                           |
-| ソース          | `manual` （ `create [global] binding` SQLステートメントによって作成される）、 `capture` （TiDBによって自動的にキャプチャされる）、および`evolve` （TiDBによって自動的に展開される）を含む、バインディングが作成される方法。 |
+| Column Name  | Note                                                                                                                                                                                                         |
+| :----------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| original_sql | Original SQL statement after parameterization                                                                                                                                                                |
+| bind_sql     | Bound SQL statement with hints                                                                                                                                                                               |
+| default_db   | Default database                                                                                                                                                                                             |
+| status       | Status including `enabled` (replacing the `using` status from v6.0), `disabled`, `deleted`, `invalid`, `rejected`, and `pending verify`                                                                      |
+| create_time  | Creating time                                                                                                                                                                                                |
+| update_time  | Updating time                                                                                                                                                                                                |
+| charset      | Character set                                                                                                                                                                                                |
+| collation    | Ordering rule                                                                                                                                                                                                |
+| source       | The way in which a binding is created, including `manual` (created by the `create [global] binding` SQL statement), `capture` (captured automatically by TiDB), and `evolve` (evolved automatically by TiDB) |
 
-### バインディングのトラブルシューティング {#troubleshoot-a-binding}
+### Troubleshoot a binding {#troubleshoot-a-binding}
 
-次のいずれかの方法を使用して、バインディングのトラブルシューティングを行うことができます。
+You can use either of the following methods to troubleshoot a binding:
 
--   システム変数[`last_plan_from_binding`](/system-variables.md#last_plan_from_binding-new-in-v40)を使用して、最後に実行されたステートメントで使用された実行プランがバインディングからのものであるかどうかを示します。
-
-    {{< copyable "" >}}
+-   Use the system variable [`last_plan_from_binding`](/system-variables.md#last_plan_from_binding-new-in-v40) to show whether the execution plan used by the last executed statement is from the binding.
 
     ```sql
     -- Create a global binding
@@ -251,7 +316,7 @@ SHOW [GLOBAL | SESSION] BINDINGS [ShowLikeOrWhere]
     1 row in set (0.00 sec)
     ```
 
--   `explain format = 'verbose'`ステートメントを使用して、SQLステートメントのクエリプランを表示します。 SQLステートメントがバインディングを使用している場合は、 `show warnings`を実行して、SQLステートメントで使用されているバインディングを確認できます。
+-   Use the `explain format = 'verbose'` statement to view the query plan of a SQL statement. If the SQL statement uses a binding, you can run `show warnings` to check which binding is used in the SQL statement.
 
     ```sql
     -- Create a global binding
@@ -280,13 +345,11 @@ SHOW [GLOBAL | SESSION] BINDINGS [ShowLikeOrWhere]
 
     ```
 
-### キャッシュバインディング {#cache-bindings}
+### Cache bindings {#cache-bindings}
 
-各TiDBインスタンスには、バインディングに使用頻度が最も低い（LRU）キャッシュがあります。キャッシュ容量は、システム変数[`tidb_mem_quota_binding_cache`](/system-variables.md#tidb_mem_quota_binding_cache-new-in-v600)によって制御されます。 TiDBインスタンスにキャッシュされているバインディングを表示できます。
+Each TiDB instance has a least recently used (LRU) cache for bindings. The cache capacity is controlled by the system variable [`tidb_mem_quota_binding_cache`](/system-variables.md#tidb_mem_quota_binding_cache-new-in-v600). You can view bindings that are cached in the TiDB instance.
 
-バインディングのキャッシュステータスを表示するには、 `SHOW binding_cache status`ステートメントを実行します。このステートメントでは、有効なスコープはデフォルトでGLOBALであり、変更できません。このステートメントは、キャッシュで使用可能なバインディングの数、システムで使用可能なバインディングの総数、キャッシュされたすべてのバインディングのメモリ使用量、およびキャッシュの合計メモリを返します。
-
-{{< copyable "" >}}
+To view the cache status of bindings, run the `SHOW binding_cache status` statement. In this statement, the effective scope is GLOBAL by default and cannot be modified. This statement returns the number of available bindings in the cache, the total number of available bindings in the system, memory usage of all cached bindings, and the total memory for the cache.
 
 ```sql
 
@@ -302,44 +365,44 @@ SHOW binding_cache status;
 1 row in set (0.00 sec)
 ```
 
-## ベースラインキャプチャ {#baseline-capturing}
+## Baseline capturing {#baseline-capturing}
 
-[アップグレード中の実行計画のリグレッションの防止](#prevent-regression-of-execution-plans-during-an-upgrade)に使用されるこの機能は、キャプチャ条件を満たすクエリをキャプチャし、これらのクエリのバインディングを作成します。
+Used for [preventing regression of execution plans during an upgrade](#prevent-regression-of-execution-plans-during-an-upgrade), this feature captures queries that meet capturing conditions and creates bindings for these queries.
 
-### キャプチャを有効にする {#enable-capturing}
+### Enable capturing {#enable-capturing}
 
-ベースラインキャプチャを有効にするには、 `tidb_capture_plan_baselines`を設定し`on` 。デフォルト値は`off`です。
+To enable baseline capturing, set `tidb_capture_plan_baselines` to `on`. The default value is `off`.
 
-> **ノート：**
+> **Note:**
 >
-> 自動バインディング作成機能は[ステートメントの要約](/statement-summary-tables.md)に依存しているため、自動バインディングを使用する前に、必ずステートメントの概要を有効にしてください。
+> Because the automatic binding creation function relies on [Statement Summary](/statement-summary-tables.md), make sure to enable Statement Summary before using automatic binding.
 
-自動バインディング作成を有効にすると、ステートメントの概要の履歴SQLステートメントが`bind-info-lease`ごとにトラバースされ（デフォルト値は`3s` ）、少なくとも2回表示されるSQLステートメントのバインディングが自動的に作成されます。これらのSQLステートメントの場合、TiDBはステートメントの概要に記録されている実行プランを自動的にバインドします。
+After automatic binding creation is enabled, the historical SQL statements in the Statement Summary are traversed every `bind-info-lease` (the default value is `3s`), and a binding is automatically created for SQL statements that appear at least twice. For these SQL statements, TiDB automatically binds the execution plan recorded in Statement Summary.
 
-ただし、TiDBは、次のタイプのSQLステートメントのバインディングを自動的にキャプチャしません。
+However, TiDB does not automatically capture bindings for the following types of SQL statements:
 
--   `EXPLAIN`および`EXPLAIN ANALYZE`ステートメント。
--   統計情報を自動的にロードするために使用される`SELECT`のクエリなど、TiDBで内部的に実行されるSQLステートメント。
--   `Enabled`つまたは`Disabled`のバインディングを含むステートメント。
--   条件をキャプチャすることによって除外されるステートメント。
+-   `EXPLAIN` and `EXPLAIN ANALYZE` statements.
+-   SQL statements executed internally in TiDB, such as `SELECT` queries used for automatically loading statistical information.
+-   Statements that contain `Enabled` or `Disabled` bindings.
+-   Statements that are filtered out by capturing conditions.
 
-> **ノート：**
+> **Note:**
 >
-> 現在、バインディングは、クエリステートメントによって生成された実行プランを修正するためのヒントのグループを生成します。このように、同じクエリに対して、実行プランは変更されません。同じインデックスまたは結合アルゴリズム（HashJoinやIndexJoinなど）を使用するクエリを含むほとんどのOLTPクエリでは、TiDBはバインディングの前後でプランの一貫性を保証します。ただし、ヒントの制限により、TiDBは、3つ以上のテーブルの結合、MPPクエリ、複雑なOLAPクエリなど、一部の複雑なクエリのプランの整合性を保証できません。
+> Currently, a binding generates a group of hints to fix an execution plan generated by a query statement. In this way, for the same query, the execution plan does not change. For most OLTP queries, including queries using the same index or Join algorithm (such as HashJoin and IndexJoin), TiDB guarantees plan consistency before and after the binding. However, due to the limitations of hints, TiDB cannot guarantee plan consistency for some complex queries, such as Join of more than two tables, MPP queries, and complex OLAP queries.
 
-`PREPARE`ステートメントおよびバイナリプロトコルで実行されるクエリの場合、 `EXECUTE` `EXECUTE` `PREPARE`はなく、実際のクエリステートメントのバインディングを自動的にキャプチャします。
+For `PREPARE` / `EXECUTE` statements and for queries executed with binary protocols, TiDB automatically captures bindings for the real query statements, not for the `PREPARE` / `EXECUTE` statements.
 
-> **ノート：**
+> **Note:**
 >
-> TiDBにはいくつかの機能の正確さを保証するためにいくつかの埋め込みSQLステートメントがあるため、ベースラインキャプチャはデフォルトでこれらのSQLステートメントを自動的にシールドします。
+> Because TiDB has some embedded SQL statements to ensure the correctness of some features, baseline capturing by default automatically shields these SQL statements.
 
-### バインディングを除外する {#filter-out-bindings}
+### Filter out bindings {#filter-out-bindings}
 
-この機能を使用すると、バインディングをキャプチャしたくないクエリを除外するようにブロックリストを構成できます。ブロックリストには、テーブル名、頻度、およびユーザー名の3つのディメンションがあります。
+This feature allows you to configure a blocklist to filter out queries whose bindings you do not want to capture. A blocklist has three dimensions, table name, frequency, and user name.
 
-#### 使用法 {#usage}
+#### Usage {#usage}
 
-フィルタリング条件をシステムテーブル`mysql.capture_plan_baselines_blacklist`に挿入します。その後、フィルタリング条件はクラスタ全体ですぐに有効になります。
+Insert filtering conditions into the system table `mysql.capture_plan_baselines_blacklist`. Then the filtering conditions take effect in the entire cluster immediately.
 
 ```sql
 -- Filter by table name
@@ -356,37 +419,37 @@ SHOW binding_cache status;
  INSERT INTO mysql.capture_plan_baselines_blacklist(filter_type, filter_value) VALUES('user', 'user1');
 ```
 
-| **寸法名** | **説明**                                                                                                                                                         | 備考                                                                                                                                           |
-| :------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| テーブル    | テーブル名でフィルタリングします。各フィルタリングルールは`db.table`形式です。サポートされているフィルタリング構文には、 [プレーンテーブル名](/table-filter.md#plain-table-names)と[ワイルドカード](/table-filter.md#wildcards)が含まれます。 | 大文字小文字を区別しません。テーブル名に不正な文字が含まれている場合、ログは警告メッセージ`[sql-bind] failed to load mysql.capture_plan_baselines_blacklist`を返します。                        |
-| 周波数     | 周波数でフィルタリングします。複数回実行されたSQLステートメントは、デフォルトでキャプチャされます。頻繁に実行されるステートメントをキャプチャするように高頻度を設定できます。                                                                       | 頻度を1より小さい値に設定すると、違法と見なされ、ログは警告メッセージ`[sql-bind] frequency threshold is less than 1, ignore it`を返します。複数の頻度フィルタールールが挿入されている場合は、頻度が最も高い値が優先されます。 |
-| ユーザー    | ユーザー名でフィルタリングします。ブロックリストに登録されたユーザーによって実行されたステートメントはキャプチャされません。                                                                                                 | 複数のユーザーが同じステートメントを実行し、それらのユーザー名がすべてブロックリストに含まれている場合、このステートメントはキャプチャされません。                                                                    |
+| **Dimension name** | **Description**                                                                                                                                                                                                     | Remarks                                                                                                                                                                                                                                                              |
+| :----------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| table              | Filter by table name. Each filtering rule is in the `db.table` format. The supported filtering syntax includes [Plain table names](/table-filter.md#plain-table-names) and [Wildcards](/table-filter.md#wildcards). | Case insensitive. If a table name contains illegal characters, the log returns a warning message `[sql-bind] failed to load mysql.capture_plan_baselines_blacklist`.                                                                                                 |
+| frequency          | Filter by frequency. SQL statements executed more than once are captured by default. You can set a high frequency to capture statements that are frequently executed.                                               | Setting frequency to a value smaller than 1 is considered illegal, and the log returns a warning message `[sql-bind] frequency threshold is less than 1, ignore it`. If multiple frequency filter rules are inserted, the value with the highest frequency prevails. |
+| user               | Filter by user name. Statements executed by blocklisted users are not captured.                                                                                                                                     | If multiple users execute the same statement and their user names are all in the blocklist, this statement is not captured.                                                                                                                                          |
 
-> **ノート：**
+> **Note:**
 >
-> -   ブロックリストを変更するには、スーパー特権が必要です。
+> -   Modifying a blocklist requires the super privilege.
 >
-> -   ブロックリストに不正なフィルターが含まれている場合、TiDBはログに警告メッセージ`[sql-bind] unknown capture filter type, ignore it`を返します。
+> -   If a blocklist contains illegal filters, TiDB returns the warning message `[sql-bind] unknown capture filter type, ignore it` in the log.
 
-### アップグレード中の実行計画の退行を防ぐ {#prevent-regression-of-execution-plans-during-an-upgrade}
+### Prevent regression of execution plans during an upgrade {#prevent-regression-of-execution-plans-during-an-upgrade}
 
-TiDBクラスタをアップグレードする前に、ベースラインキャプチャを使用して、次の手順を実行することにより、実行プランのリグレッションを防ぐことができます。
+Before upgrading a TiDB cluster, you can use baseline capturing to prevent regression of execution plans by performing the following steps:
 
-1.  ベースラインキャプチャを有効にして、機能し続けます。
+1.  Enable baseline capturing and keep it working.
 
-    > **ノート：**
+    > **Note:**
     >
-    > テストデータは、ベースラインキャプチャの長期的な動作が、クラスタ負荷のパフォーマンスにわずかな影響を与えることを示しています。したがって、重要な計画（2回以上表示される）がキャプチャされるように、ベースラインキャプチャをできるだけ長く有効にすることをお勧めします。
+    > Test data shows that long-term working of baseline capturing has a slight impact on the performance of the cluster load. Therefore, it is recommended to enable baseline capturing as long as possible so that important plans (appear twice or above) are captured.
 
-2.  TiDBクラスタをアップグレードします。アップグレード後、TiDBはこれらのキャプチャされたバインディングを使用して、実行プランの一貫性を確保します。
+2.  Upgrade the TiDB cluster. After the upgrade, TiDB uses those captured bindings to ensure execution plan consistency.
 
-3.  アップグレード後、必要に応じてバインディングを削除します。
+3.  After the upgrade, delete bindings as required.
 
-    -   [`SHOW GLOBAL BINDINGS`](#view-bindings)ステートメントを実行して、バインディングソースを確認します。
+    -   Check the binding source by running the [`SHOW GLOBAL BINDINGS`](#view-bindings) statement.
 
-        出力で、 `Source`フィールドをチェックして、バインディングがキャプチャされているか（ `capture` ）、手動で作成されているか（ `manual` ）を確認します。
+        In the output, check the `Source` field to see whether a binding is captured (`capture`) or manually created (`manual`).
 
-    -   キャプチャされたバインディングを保持するかどうかを決定します。
+    -   Determine whether to retain the captured bindings:
 
         ```
         -- View the plan with the binding enabled
@@ -398,100 +461,99 @@ TiDBクラスタをアップグレードする前に、ベースラインキャ�
         EXPLAIN FORMAT='VERBOSE' SELECT * FROM t1 WHERE ...;
         ```
 
-        -   実行プランに一貫性がある場合は、バインディングを安全に削除できます。
+        -   If the execution plan is consistent, you can delete the binding safely.
 
-        -   実行計画に一貫性がない場合は、統計を確認するなどして原因を特定する必要があります。この場合、プランの一貫性を確保するためにバインディングを保持する必要があります。
+        -   If the execution plan is inconsistent, you need to identify the cause, for example, by checking statistics. In this case, you need to retain the binding to ensure plan consistency.
 
-## ベースラインの進化 {#baseline-evolution}
+## Baseline evolution {#baseline-evolution}
 
-ベースラインの進化は、TiDBv4.0で導入されたSPMの重要な機能です。
+Baseline evolution is an important feature of SPM introduced in TiDB v4.0.
 
-データが更新されると、以前にバインドされた実行プランが最適でなくなる可能性があります。ベースライン進化機能は、バインドされた実行プランを自動的に最適化できます。
+As data updates, the previously bound execution plan might no longer be optimal. The baseline evolution feature can automatically optimize the bound execution plan.
 
-さらに、ベースラインの進化は、統計情報の変更によって引き起こされる実行計画にもたらされるジッターをある程度回避することもできます。
+In addition, baseline evolution, to a certain extent, can also avoid the jitter brought to the execution plan caused by the change of statistical information.
 
-### 使用法 {#usage}
+### Usage {#usage}
 
-次のステートメントを使用して、自動バインディングエボリューションを有効にします。
-
-{{< copyable "" >}}
+Use the following statement to enable automatic binding evolution:
 
 ```sql
 SET GLOBAL tidb_evolve_plan_baselines = ON;
 ```
 
-デフォルト値の`tidb_evolve_plan_baselines`は`off`です。
+The default value of `tidb_evolve_plan_baselines` is `off`.
 
-> **警告：**
->
-> -   ベースラインの進化は実験的特徴です。未知のリスクが存在する可能性があります。実稼働環境で使用することはお勧めし**ません**。
-> -   この変数は、ベースライン進化機能が一般的に利用可能になるまで（GA）、強制的に`off`に設定されます。この機能を有効にしようとすると、エラーが返されます。この機能を実稼働環境ですでに使用している場合は、できるだけ早く無効にしてください。バインディングステータスが期待どおりでない場合は、PingCAPのテクニカルサポートに問い合わせてください。
+<CustomContent platform="tidb">
+  > **Warning:**
+  >
+  > -   Baseline evolution is an experimental feature. Unknown risks might exist. It is **NOT** recommended that you use it in the production environment.
+  > -   This variable is forcibly set to `off` until the baseline evolution feature becomes generally available (GA). If you try to enable this feature, an error is returned. If you have already used this feature in a production environment, disable it as soon as possible. If you find that the binding status is not as expected, [get support](/support.md) from PingCAP or the community.
+</CustomContent>
 
-自動バインディングエボリューション機能を有効にした後、オプティマイザーによって選択された最適な実行プランがバインディング実行プランに含まれていない場合、オプティマイザーはそのプランを検証を待機する実行プランとしてマークします。 `bind-info-lease` （デフォルト値は`3s` ）間隔ごとに、検証される実行プランが選択され、実際の実行時間の点でコストが最も低いバインディング実行プランと比較されます。検証対象のプランの実行時間が短い場合（現在の比較基準では、検証対象のプランの実行時間がバインディング実行プランの実行時間の2/3以下である）、このプランは使用可能としてマークされます。バインディング。次の例では、上記のプロセスについて説明します。
+<CustomContent platform="tidb-cloud">
+  > **Warning:**
+  >
+  > -   Baseline evolution is an experimental feature. Unknown risks might exist. It is **NOT** recommended that you use it in the production environment.
+  > -   This variable is forcibly set to `off` until the baseline evolution feature becomes generally available (GA). If you try to enable this feature, an error is returned. If you have already used this feature in a production environment, disable it as soon as possible. If you find that the binding status is not as expected, [contact TiDB Cloud Support](/tidb-cloud/tidb-cloud-support.md).
+</CustomContent>
 
-表`t`が次のように定義されていると仮定します。
+After the automatic binding evolution feature is enabled, if the optimal execution plan selected by the optimizer is not among the binding execution plans, the optimizer marks the plan as an execution plan that waits for verification. At every `bind-info-lease` (the default value is `3s`) interval, an execution plan to be verified is selected and compared with the binding execution plan that has the least cost in terms of the actual execution time. If the plan to be verified has shorter execution time (the current criterion for the comparison is that the execution time of the plan to be verified is no longer than 2/3 that of the binding execution plan), this plan is marked as a usable binding. The following example describes the process above.
 
-{{< copyable "" >}}
+Assume that table `t` is defined as follows:
 
 ```sql
 CREATE TABLE t(a INT, b INT, KEY(a), KEY(b));
 ```
 
-表`t`で次のクエリを実行します。
-
-{{< copyable "" >}}
+Perform the following query on table `t`:
 
 ```sql
 SELECT * FROM t WHERE a < 100 AND b < 100;
 ```
 
-上で定義されたテーブルでは、 `a < 100`の条件を満たす行はほとんどありません。しかし、何らかの理由で、オプティマイザは、インデックス`a`を使用する最適な実行プランではなく、誤って全表スキャンを選択します。最初に次のステートメントを使用してバインディングを作成できます。
-
-{{< copyable "" >}}
+In the table defined above, few rows meet the `a < 100` condition. But for some reason, the optimizer mistakenly selects the full table scan instead of the optimal execution plan that uses index `a`. You can first use the following statement to create a binding:
 
 ```sql
 CREATE GLOBAL BINDING for SELECT * FROM t WHERE a < 100 AND b < 100 using SELECT * FROM t use index(a) WHERE a < 100 AND b < 100;
 ```
 
-上記のクエリが再度実行されると、オプティマイザはインデックス`a` （上記で作成されたバインディングの影響を受けます）を選択して、クエリ時間を短縮します。
+When the query above is executed again, the optimizer selects index `a` (influenced by the binding created above) to reduce the query time.
 
-表`t`で挿入と削除が実行されると、 `a < 100`の条件を満たす行の数が増え、 `b < 100`の条件を満たす行の数が減ると仮定します。現時点では、バインディングの下でインデックス`a`を使用することは、もはや最適な計画ではない可能性があります。
+Assuming that as insertions and deletions are performed on table `t`, an increasing number of rows meet the `a < 100` condition and a decreasing number of rows meet the `b < 100` condition. At this time, using index `a` under the binding might no longer be the optimal plan.
 
-バインディングの進化は、この種の問題に対処できます。オプティマイザは、テーブル内のデータの変更を認識すると、インデックス`b`を使用するクエリの実行プランを生成します。ただし、現在のプランのバインディングが存在するため、このクエリプランは採用および実行されません。代わりに、このプランはバックエンドの進化リストに保存されます。展開プロセス中に、このプランの実行時間が、インデックス`a`を使用する現在の実行プランよりも明らかに短いことが確認された場合、インデックス`b`が使用可能なバインディングリストに追加されます。この後、クエリが再度実行されると、オプティマイザは最初にインデックス`b`を使用する実行プランを生成し、このプランがバインディングリストに含まれていることを確認します。次に、オプティマイザーはこのプランを採用して実行し、データ変更後のクエリ時間を短縮します。
+The binding evolution can address this kind of issues. When the optimizer recognizes data change in a table, it generates an execution plan for the query that uses index `b`. However, because the binding of the current plan exists, this query plan is not adopted and executed. Instead, this plan is stored in the backend evolution list. During the evolution process, if this plan is verified to have an obviously shorter execution time than that of the current execution plan that uses index `a`, index `b` is added into the available binding list. After this, when the query is executed again, the optimizer first generates the execution plan that uses index `b` and makes sure that this plan is in the binding list. Then the optimizer adopts and executes this plan to reduce the query time after data changes.
 
-自動進化がクラスターに与える影響を減らすには、次の構成を使用します。
+To reduce the impact that the automatic evolution has on clusters, use the following configurations:
 
--   各実行プランの最大実行時間を制限するには、 `tidb_evolve_plan_task_max_time`を設定します。デフォルト値は`600s`です。実際の検証プロセスでは、最大実行時間も検証された実行計画の2倍以下に制限されます。
--   時間枠を制限するには、 `tidb_evolve_plan_task_start_time` （デフォルトでは`00:00 +0000` ）と`tidb_evolve_plan_task_end_time` （デフォルトでは`23:59 +0000` ）を設定します。
+-   Set `tidb_evolve_plan_task_max_time` to limit the maximum execution time of each execution plan. The default value is `600s`. In the actual verification process, the maximum execution time is also limited to no more than twice the time of the verified execution plan.
+-   Set `tidb_evolve_plan_task_start_time` (`00:00 +0000` by default) and `tidb_evolve_plan_task_end_time` (`23:59 +0000` by default) to limit the time window.
 
-### ノート {#notes}
+### Notes {#notes}
 
-ベースラインの進化により新しいバインディングが自動的に作成されるため、クエリ環境が変更されると、自動的に作成されたバインディングには複数の動作の選択肢がある場合があります。次の注意事項に注意してください。
+Because the baseline evolution automatically creates a new binding, when the query environment changes, the automatically created binding might have multiple behavior choices. Pay attention to the following notes:
 
--   ベースラインの進化は、少なくとも1つのグローバルバインディングを持つ標準化されたSQLステートメントのみを進化させます。
+-   Baseline evolution only evolves standardized SQL statements that have at least one global binding.
 
--   新しいバインディングを作成すると、以前のすべてのバインディングが削除されるため（標準化されたSQLステートメントの場合）、新しいバインディングを手動で作成した後、自動的に展開されたバインディングが削除されます。
+-   Because creating a new binding deletes all previous bindings (for a standardized SQL statement), the automatically evolved binding will be deleted after manually creating a new binding.
 
--   計算プロセスに関連するすべてのヒントは、進化中に保持されます。これらのヒントは次のとおりです。
+-   All hints related to the calculation process are retained during the evolution. These hints are as follows:
 
-    | ヒント                       | 説明                                              |
-    | :------------------------ | :---------------------------------------------- |
-    | `memory_quota`            | クエリに使用できる最大メモリ。                                 |
-    | `use_toja`                | オプティマイザがサブクエリをJoinに変換するかどうか。                    |
-    | `use_cascades`            | カスケードオプティマイザを使用するかどうか。                          |
-    | `no_index_merge`          | オプティマイザがテーブルを読み取るためのオプションとしてインデックスマージを使用するかどうか。 |
-    | `read_consistent_replica` | テーブルの読み取り時にフォロワー読み取りを強制的に有効にするかどうか。             |
-    | `max_execution_time`      | クエリの最長期間。                                       |
+    | Hint                      | Description                                                             |
+    | :------------------------ | :---------------------------------------------------------------------- |
+    | `memory_quota`            | The maximum memory that can be used for a query.                        |
+    | `use_toja`                | Whether the optimizer transforms sub-queries to Join.                   |
+    | `use_cascades`            | Whether to use the cascades optimizer.                                  |
+    | `no_index_merge`          | Whether the optimizer uses Index Merge as an option for reading tables. |
+    | `read_consistent_replica` | Whether to forcibly enable Follower Read when reading tables.           |
+    | `max_execution_time`      | The longest duration for a query.                                       |
 
--   `read_from_storage`は、テーブルを読み取るときにTiKVからデータを読み取るかTiFlashからデータを読み取るかを指定するという点で特別なヒントです。 TiDBは分離読み取りを提供するため、分離条件が変更されると、このヒントは進化した実行プランに大きな影響を与えます。したがって、このヒントが最初に作成されたバインディングに存在する場合、TiDBはその進化したバインディングをすべて無視します。
+-   `read_from_storage` is a special hint in that it specifies whether to read data from TiKV or from TiFlash when reading tables. Because TiDB provides isolation reads, when the isolation condition changes, this hint has a great influence on the evolved execution plan. Therefore, when this hint exists in the initially created binding, TiDB ignores all its evolved bindings.
 
-## アップグレードチェックリスト {#upgrade-checklist}
+## Upgrade checklist {#upgrade-checklist}
 
-クラスタのアップグレード中に、SQL Plan Management（SPM）によって互換性の問題が発生し、アップグレードが失敗する場合があります。アップグレードを成功させるには、アップグレードの事前チェックのために次のリストを含める必要があります。
+During cluster upgrade, SQL Plan Management (SPM) might cause compatibility issues and make the upgrade fail. To ensure a successful upgrade, you need to include the following list for upgrade precheck:
 
--   v5.2.0より前のバージョン（つまり、v4.0、v5.0、およびv5.1）から現在のバージョンにアップグレードする場合は、アップグレードする前に`tidb_evolve_plan_baselines`が無効になっていることを確認してください。この変数を無効にするには、次の手順を実行します。
-
-    {{< copyable "" >}}
+-   When you upgrade from a version earlier than v5.2.0 (that is, v4.0, v5.0, and v5.1) to the current version, make sure that `tidb_evolve_plan_baselines` is disabled before the upgrade. To disable this variable, perform the following steps.
 
     ```sql
     -- Check whether `tidb_evolve_plan_baselines` is disabled in the earlier version.
@@ -503,9 +565,7 @@ CREATE GLOBAL BINDING for SELECT * FROM t WHERE a < 100 AND b < 100 using SELECT
     SET GLOBAL tidb_evolve_plan_baselines = OFF;
     ```
 
--   v4.0から現在のバージョンにアップグレードする前に、使用可能なSQLバインディングに対応するすべてのクエリの構文が新しいバージョンで正しいかどうかを確認する必要があります。構文エラーが存在する場合は、対応するSQLバインディングを削除します。これを行うには、次の手順を実行します。
-
-    {{< copyable "" >}}
+-   Before you upgrade from v4.0 to the current version, you need to check whether the syntax of all queries corresponding to the available SQL bindings is correct in the new version. If any syntax errors exist, delete the corresponding SQL binding. To do that, perform the following steps.
 
     ```sql
     -- Check the query corresponding to the available SQL binding in the version to be upgraded.
