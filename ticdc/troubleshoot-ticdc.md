@@ -3,212 +3,188 @@ title: Troubleshoot TiCDC
 summary: Learn how to troubleshoot issues you might encounter when you use TiCDC.
 ---
 
-# TiCDCのトラブルシューティング {#troubleshoot-ticdc}
+# Troubleshoot TiCDC {#troubleshoot-ticdc}
 
-このドキュメントでは、TiCDCを使用するときに発生する可能性のある一般的なエラーと、それに対応するメンテナンスおよびトラブルシューティングの方法を紹介します。
+This document introduces the common errors you might encounter when using TiCDC, and the corresponding maintenance and troubleshooting methods.
 
-> **ノート：**
+> **Note:**
 >
-> このドキュメントでは、 `cdc cli`コマンドで指定されたPDアドレスは`--pd=http://10.0.10.25:2379`です。コマンドを使用するときは、アドレスを実際のPDアドレスに置き換えてください。
+> In this document, the PD address specified in `cdc cli` commands is `--pd=http://10.0.10.25:2379`. When you use the command, replace the address with your actual PD address.
 
-## TiCDCレプリケーションの中断 {#ticdc-replication-interruptions}
+## TiCDC replication interruptions {#ticdc-replication-interruptions}
 
-### TiCDCレプリケーションタスクが中断されているかどうかを確認するにはどうすればよいですか？ {#how-do-i-know-whether-a-ticdc-replication-task-is-interrupted}
+### How do I know whether a TiCDC replication task is interrupted? {#how-do-i-know-whether-a-ticdc-replication-task-is-interrupted}
 
--   Grafanaダッシュボードでレプリケーションタスクの`changefeed checkpoint`の監視メトリックを確認します（右の`changefeed id`を選択します）。メトリック値が変更されない場合、または`checkpoint lag`メトリックが増加し続ける場合は、レプリケーションタスクが中断される可能性があります。
--   `exit error count`の監視メトリックを確認します。メトリック値が`0`より大きい場合、レプリケーションタスクでエラーが発生しています。
--   `cdc cli changefeed list`と`cdc cli changefeed query`を実行して、レプリケーションタスクのステータスを確認します。 `stopped`はタスクが停止したことを意味し、 `error`項目は詳細なエラーメッセージを提供します。エラーが発生した後、TiCDCサーバーログで`error on running processor`を検索して、トラブルシューティングのためのエラースタックを確認できます。
--   極端な場合には、TiCDCサービスが再起動されます。トラブルシューティングのために、TiCDCサーバーログで`FATAL`レベルのログを検索できます。
+-   Check the `changefeed checkpoint` monitoring metric of the replication task (choose the right `changefeed id`) in the Grafana dashboard. If the metric value stays unchanged, or the `checkpoint lag` metric keeps increasing, the replication task might be interrupted.
+-   Check the `exit error count` monitoring metric. If the metric value is greater than `0`, an error has occurred in the replication task.
+-   Execute `cdc cli changefeed list` and `cdc cli changefeed query` to check the status of the replication task. `stopped` means the task has stopped, and the `error` item provides the detailed error message. After the error occurs, you can search `error on running processor` in the TiCDC server log to see the error stack for troubleshooting.
+-   In some extreme cases, the TiCDC service is restarted. You can search the `FATAL` level log in the TiCDC server log for troubleshooting.
 
-### レプリケーションタスクが手動で停止されているかどうかを確認するにはどうすればよいですか？ {#how-do-i-know-whether-the-replication-task-is-stopped-manually}
+### How do I know whether the replication task is stopped manually? {#how-do-i-know-whether-the-replication-task-is-stopped-manually}
 
-`cdc cli`を実行すると、レプリケーションタスクが手動で停止されているかどうかを確認できます。例えば：
-
-{{< copyable "" >}}
+You can know whether the replication task is stopped manually by executing `cdc cli`. For example:
 
 ```shell
 cdc cli changefeed query --pd=http://10.0.10.25:2379 --changefeed-id 28c43ffc-2316-4f4f-a70b-d1a7c59ba79f
 ```
 
-上記のコマンドの出力で、 `admin-job-type`はこのレプリケーションタスクの状態を示しています。
+In the output of the above command, `admin-job-type` shows the state of this replication task:
 
--   `0` ：進行中です。これは、タスクが手動で停止されていないことを意味します。
--   `1` ：一時停止。タスクが一時停止されると、複製されたすべての`processor`が終了します。タスクの構成とレプリケーションステータスは保持されるため、 `checkpiont-ts`からタスクを再開できます。
--   `2` ：再開しました。レプリケーションタスクは`checkpoint-ts`から再開します。
--   `3` ：削除されました。タスクが削除されると、複製された`processor`がすべて終了し、複製タスクの構成情報がクリアされます。レプリケーションステータスは、後のクエリのためにのみ保持されます。
+-   `0`: In progress, which means that the task is not stopped manually.
+-   `1`: Paused. When the task is paused, all replicated `processor`s exit. The configuration and the replication status of the task are retained, so you can resume the task from `checkpiont-ts`.
+-   `2`: Resumed. The replication task resumes from `checkpoint-ts`.
+-   `3`: Removed. When the task is removed, all replicated `processor`s are ended, and the configuration information of the replication task is cleared up. The replication status is retained only for later queries.
 
-### レプリケーションの中断を処理するにはどうすればよいですか？ {#how-do-i-handle-replication-interruptions}
+### How do I handle replication interruptions? {#how-do-i-handle-replication-interruptions}
 
-次の既知のシナリオでは、レプリケーションタスクが中断される可能性があります。
+A replication task might be interrupted in the following known scenarios:
 
--   ダウンストリームは引き続き異常であり、TiCDCは何度も再試行した後も失敗します。
+-   The downstream continues to be abnormal, and TiCDC still fails after many retries.
 
-    -   このシナリオでは、TiCDCはタスク情報を保存します。 TiCDCはPDにサービスGCセーフポイントを設定しているため、タスクチェックポイント後のデータは有効期間`gc-ttl`以内にTiKVGCによってクリーンアップされません。
+    -   In this scenario, TiCDC saves the task information. Because TiCDC has set the service GC safepoint in PD, the data after the task checkpoint is not cleaned by TiKV GC within the valid period of `gc-ttl`.
 
-    -   処理方法：ダウンストリームが通常に戻った後、HTTPインターフェースを介してレプリケーションタスクを再開できます。
+    -   Handling method: You can resume the replication task via the HTTP interface after the downstream is back to normal.
 
--   ダウンストリームに互換性のないSQLステートメントがあるため、レプリケーションを続行できません。
+-   Replication cannot continue because of incompatible SQL statement(s) in the downstream.
 
-    -   このシナリオでは、TiCDCはタスク情報を保存します。 TiCDCはPDにサービスGCセーフポイントを設定しているため、タスクチェックポイント後のデータは有効期間`gc-ttl`以内にTiKVGCによってクリーンアップされません。
-    -   取り扱い手順：
-        1.  `cdc cli changefeed query`コマンドを使用してレプリケーションタスクのステータス情報を照会し、値`checkpoint-ts`を記録します。
-        2.  新しいタスク構成ファイルを使用し、 `ignore-txn-start-ts`パラメーターを追加して、指定された`start-ts`に対応するトランザクションをスキップします。
-        3.  HTTPAPIを介して古いレプリケーションタスクを停止します。 `cdc cli changefeed create`を実行して新しいタスクを作成し、新しいタスク構成ファイルを指定します。手順1で記録した`checkpoint-ts`を`start-ts`として指定し、新しいタスクを開始してレプリケーションを再開します。
+    -   In this scenario, TiCDC saves the task information. Because TiCDC has set the service GC safepoint in PD, the data after the task checkpoint is not cleaned by TiKV GC within the valid period of `gc-ttl`.
+    -   Handling procedures:
+        1.  Query the status information of the replication task using the `cdc cli changefeed query` command and record the value of `checkpoint-ts`.
+        2.  Use the new task configuration file and add the `ignore-txn-start-ts` parameter to skip the transaction corresponding to the specified `start-ts`.
+        3.  Stop the old replication task via HTTP API. Execute `cdc cli changefeed create` to create a new task and specify the new task configuration file. Specify `checkpoint-ts` recorded in step 1 as the `start-ts` and start a new task to resume the replication.
 
--   TiCDC v4.0.13以前のバージョンでは、TiCDCがパーティションテーブルを複製するときに、複製の中断につながるエラーが発生する場合があります。
+-   In TiCDC v4.0.13 and earlier versions, when TiCDC replicates the partitioned table, it might encounter an error that leads to replication interruption.
 
-    -   このシナリオでは、TiCDCはタスク情報を保存します。 TiCDCはPDにサービスGCセーフポイントを設定しているため、タスクチェックポイント後のデータは有効期間`gc-ttl`以内にTiKVGCによってクリーンアップされません。
-    -   取り扱い手順：
-        1.  `cdc cli changefeed pause -c <changefeed-id>`を実行して、レプリケーションタスクを一時停止します。
-        2.  約1つのムナイトを待ってから、 `cdc cli changefeed resume -c <changefeed-id>`を実行してレプリケーションタスクを再開します。
+    -   In this scenario, TiCDC saves the task information. Because TiCDC has set the service GC safepoint in PD, the data after the task checkpoint is not cleaned by TiKV GC within the valid period of `gc-ttl`.
+    -   Handling procedures:
+        1.  Pause the replication task by executing `cdc cli changefeed pause -c <changefeed-id>`.
+        2.  Wait for about one munite, and then resume the replication task by executing `cdc cli changefeed resume -c <changefeed-id>`.
 
-### タスクの中断後にTiCDCが再起動された後に発生するOOMを処理するにはどうすればよいですか？ {#what-should-i-do-to-handle-the-oom-that-occurs-after-ticdc-is-restarted-after-a-task-interruption}
+### What should I do to handle the OOM that occurs after TiCDC is restarted after a task interruption? {#what-should-i-do-to-handle-the-oom-that-occurs-after-ticdc-is-restarted-after-a-task-interruption}
 
--   TiDBクラスタとTiCDCクラスタを最新バージョンに更新します。 OOMの問題は、 **v4.0.14以降のv4.0バージョン、v5.0.2以降のv5.0バージョン、および最新バージョンで**はすでに解決されています。
+-   Update your TiDB cluster and TiCDC cluster to the latest versions. The OOM problem has already been resolved in **v4.0.14 and later v4.0 versions, v5.0.2 and later v5.0 versions, and the latest versions**.
 
-## レプリケーションタスクを作成するとき、またはデータをMySQLにレプリケートするときに、 <code>Error 1298: Unknown or incorrect time zone: &#39;UTC&#39;</code>エラーを処理するにはどうすればよいですか？ {#how-do-i-handle-the-code-error-1298-unknown-or-incorrect-time-zone-utc-code-error-when-creating-the-replication-task-or-replicating-data-to-mysql}
+## How do I handle the <code>Error 1298: Unknown or incorrect time zone: 'UTC'</code> error when creating the replication task or replicating data to MySQL? {#how-do-i-handle-the-code-error-1298-unknown-or-incorrect-time-zone-utc-code-error-when-creating-the-replication-task-or-replicating-data-to-mysql}
 
-このエラーは、ダウンストリームのMySQLがタイムゾーンをロードしない場合に返されます。 [`mysql_tzinfo_to_sql`](https://dev.mysql.com/doc/refman/8.0/en/mysql-tzinfo-to-sql.html)を実行すると、タイムゾーンを読み込むことができます。タイムゾーンを読み込んだ後、タスクを作成してデータを通常どおりに複製できます。
-
-{{< copyable "" >}}
+This error is returned when the downstream MySQL does not load the time zone. You can load the time zone by running [`mysql_tzinfo_to_sql`](https://dev.mysql.com/doc/refman/8.0/en/mysql-tzinfo-to-sql.html). After loading the time zone, you can create tasks and replicate data normally.
 
 ```shell
 mysql_tzinfo_to_sql /usr/share/zoneinfo | mysql -u root mysql -p
 ```
 
-上記のコマンドの出力が次のようなものである場合、インポートは成功しています。
+If the output of the command above is similar to the following one, the import is successful:
 
-```
-Enter password:
-Warning: Unable to load '/usr/share/zoneinfo/iso3166.tab' as time zone. Skipping it.
-Warning: Unable to load '/usr/share/zoneinfo/leap-seconds.list' as time zone. Skipping it.
-Warning: Unable to load '/usr/share/zoneinfo/zone.tab' as time zone. Skipping it.
-Warning: Unable to load '/usr/share/zoneinfo/zone1970.tab' as time zone. Skipping it.
-```
+    Enter password:
+    Warning: Unable to load '/usr/share/zoneinfo/iso3166.tab' as time zone. Skipping it.
+    Warning: Unable to load '/usr/share/zoneinfo/leap-seconds.list' as time zone. Skipping it.
+    Warning: Unable to load '/usr/share/zoneinfo/zone.tab' as time zone. Skipping it.
+    Warning: Unable to load '/usr/share/zoneinfo/zone1970.tab' as time zone. Skipping it.
 
-ダウンストリームが特別なMySQL環境（パブリッククラウドRDSまたは一部のMySQL派生バージョン）であり、上記の方法を使用したタイムゾーンのインポートが失敗した場合、 `sink-uri`の`time-zone`パラメーターを使用してダウンストリームのMySQLタイムゾーンを指定する必要があります。最初に、MySQLで使用されるタイムゾーンをクエリできます。
+If the downstream is a special MySQL environment (a public cloud RDS or some MySQL derivative versions) and importing the time zone using the above method fails, you need to specify the MySQL time zone of the downstream using the `time-zone` parameter in `sink-uri`. You can first query the time zone used by MySQL:
 
-1.  MySQLで使用されるタイムゾーンをクエリします。
-
-    {{< copyable "" >}}
+1.  Query the time zone used by MySQL:
 
     ```sql
     show variables like '%time_zone%';
     ```
 
-    ```
-    +------------------+--------+
-    | Variable_name    | Value  |
-    +------------------+--------+
-    | system_time_zone | CST    |
-    | time_zone        | SYSTEM |
-    +------------------+--------+
-    ```
+        +------------------+--------+
+        | Variable_name    | Value  |
+        +------------------+--------+
+        | system_time_zone | CST    |
+        | time_zone        | SYSTEM |
+        +------------------+--------+
 
-2.  レプリケーションタスクを作成してTiCDCサービスを作成するときに、タイムゾーンを指定します。
-
-    {{< copyable "" >}}
+2.  Specify the time zone when you create the replication task and create the TiCDC service:
 
     ```shell
     cdc cli changefeed create --sink-uri="mysql://root@127.0.0.1:3306/?time-zone=CST" --pd=http://10.0.10.25:2379
     ```
 
-    > **ノート：**
+    > **Note:**
     >
-    > CSTは、次の4つの異なるタイムゾーンの略語である可能性があります。
+    > CST might be an abbreviation for the following four different time zones:
     >
-    > -   中部標準時（米国）UT-6:00
-    > -   中部標準時（オーストラリア）UT + 9：30
-    > -   中国標準時UT+8：00
-    > -   キューバ標準時UT-4:00
+    > -   Central Standard Time (USA) UT-6:00
+    > -   Central Standard Time (Australia) UT+9:30
+    > -   China Standard Time UT+8:00
+    > -   Cuba Standard Time UT-4:00
     >
-    > 中国では、CSTは通常中国標準時の略です。
+    > In China, CST usually stands for China Standard Time.
 
-## TiCDCのアップグレードによって引き起こされる構成ファイルの非互換性の問題をどのように処理しますか？ {#how-do-i-handle-the-incompatibility-issue-of-configuration-files-caused-by-ticdc-upgrade}
+## How do I handle the incompatibility issue of configuration files caused by TiCDC upgrade? {#how-do-i-handle-the-incompatibility-issue-of-configuration-files-caused-by-ticdc-upgrade}
 
-[互換性に関する注意](/ticdc/manage-ticdc.md#notes-for-compatibility)を参照してください。
+Refer to [Notes for compatibility](/ticdc/manage-ticdc.md#notes-for-compatibility).
 
-## TiCDCタスクの<code>start-ts</code>タイムスタンプは、現在の時刻とはかなり異なります。このタスクの実行中に、レプリケーションが中断され、エラー<code>[CDC:ErrBufferReachLimit]</code>が発生します {#the-code-start-ts-code-timestamp-of-the-ticdc-task-is-quite-different-from-the-current-time-during-the-execution-of-this-task-replication-is-interrupted-and-an-error-code-cdc-errbufferreachlimit-code-occurs}
+## The <code>start-ts</code> timestamp of the TiCDC task is quite different from the current time. During the execution of this task, replication is interrupted and an error <code>[CDC:ErrBufferReachLimit]</code> occurs. What should I do? {#the-code-start-ts-code-timestamp-of-the-ticdc-task-is-quite-different-from-the-current-time-during-the-execution-of-this-task-replication-is-interrupted-and-an-error-code-cdc-errbufferreachlimit-code-occurs-what-should-i-do}
 
-v4.0.9以降では、レプリケーションタスクで統合ソーター機能を有効にするか、BRツールを使用して増分バックアップと復元を行い、新しい時間からTiCDCレプリケーションタスクを開始できます。
+Since v4.0.9, you can try to enable the unified sorter feature in your replication task, or use the BR tool for an incremental backup and restore, and then start the TiCDC replication task from a new time.
 
-## チェンジフィードのダウンストリームがMySQLと同様のデータベースであり、TiCDCが時間のかかるDDLステートメントを実行する場合、他のすべてのチェンジフィードはブロックされます。問題をどのように処理する必要がありますか？ {#when-the-downstream-of-a-changefeed-is-a-database-similar-to-mysql-and-ticdc-executes-a-time-consuming-ddl-statement-all-other-changefeeds-are-blocked-how-should-i-handle-the-issue}
+## When the downstream of a changefeed is a database similar to MySQL and TiCDC executes a time-consuming DDL statement, all other changefeeds are blocked. What should I do? {#when-the-downstream-of-a-changefeed-is-a-database-similar-to-mysql-and-ticdc-executes-a-time-consuming-ddl-statement-all-other-changefeeds-are-blocked-what-should-i-do}
 
-1.  時間のかかるDDLステートメントを含むチェンジフィードの実行を一時停止します。次に、他のチェンジフィードがブロックされなくなったことがわかります。
-2.  TiCDCログで`apply job`のフィールドを検索し、時間のかかるDDLステートメントの`start-ts`を確認します。
-3.  ダウンストリームでDDLステートメントを手動で実行します。実行終了後、以下の操作を行ってください。
-4.  チェンジフィード構成を変更し、上記の`start-ts`を`ignore-txn-start-ts`構成項目に追加します。
-5.  一時停止したチェンジフィードを再開します。
+1.  Pause the execution of the changefeed that contains the time-consuming DDL statement. Then you can see that other changefeeds are no longer blocked.
+2.  Search for the `apply job` field in the TiCDC log and confirm the `start-ts` of the time-consuming DDL statement.
+3.  Manually execute the DDL statement in the downstream. After the execution finishes, go on performing the following operations.
+4.  Modify the changefeed configuration and add the above `start-ts` to the `ignore-txn-start-ts` configuration item.
+5.  Resume the paused changefeed.
 
-## TiCDCクラスタをv4.0.8にアップグレードした後、チェンジフィードを実行すると、 <code>[CDC:ErrKafkaInvalidConfig]Canal requires old value to be enabled</code>ますエラーが報告されます {#after-i-upgrade-the-ticdc-cluster-to-v4-0-8-the-code-cdc-errkafkainvalidconfig-canal-requires-old-value-to-be-enabled-code-error-is-reported-when-i-execute-a-changefeed}
+## After I upgrade the TiCDC cluster to v4.0.8, the <code>[CDC:ErrKafkaInvalidConfig]Canal requires old value to be enabled</code> error is reported when I execute a changefeed. What should I do? {#after-i-upgrade-the-ticdc-cluster-to-v4-0-8-the-code-cdc-errkafkainvalidconfig-canal-requires-old-value-to-be-enabled-code-error-is-reported-when-i-execute-a-changefeed-what-should-i-do}
 
-v4.0.8以降、チェンジフィードの出力に`canal-json` 、または`canal`プロトコルが使用されている場合、 `maxwell`は古い値の機能を自動的に有効にします。ただし、TiCDCを以前のバージョンから`maxwell` `canal-json` `canal`使用し、古い値の機能が無効になっていると、このエラーが報告されます。
+Since v4.0.8, if the `canal-json`, `canal` or `maxwell` protocol is used for output in a changefeed, TiCDC enables the old value feature automatically. However, if you have upgraded TiCDC from an earlier version to v4.0.8 or later, when the changefeed uses the `canal-json`, `canal` or `maxwell` protocol and the old value feature is disabled, this error is reported.
 
-エラーを修正するには、次の手順を実行します。
+To fix the error, take the following steps:
 
-1.  チェンジフィード構成ファイルの値`enable-old-value`を`true`に設定します。
+1.  Set the value of `enable-old-value` in the changefeed configuration file to `true`.
 
-2.  `cdc cli changefeed pause`を実行して、レプリケーションタスクを一時停止します。
-
-    {{< copyable "" >}}
+2.  Execute `cdc cli changefeed pause` to pause the replication task.
 
     ```shell
     cdc cli changefeed pause -c test-cf --pd=http://10.0.10.25:2379
     ```
 
-3.  `cdc cli changefeed update`を実行して、元のチェンジフィード構成を更新します。
-
-    {{< copyable "" >}}
+3.  Execute `cdc cli changefeed update` to update the original changefeed configuration.
 
     ```shell
-    cdc cli changefeed update -c test-cf --pd=http://10.0.10.25:2379 --sink-uri="mysql://127.0.0.1:3306/?max-txn-row=20&worker-number=8" --config=changefeed.toml
+    cdc cli changefeed update -c test-cf --pd=http://10.0.10.25:2379 --sink-uri="mysql://127.0.0.1:3306/?max-txn-row=20&worker-count=8" --config=changefeed.toml
     ```
 
-4.  `cdc cli changfeed resume`を実行して、レプリケーションタスクを再開します。
-
-    {{< copyable "" >}}
+4.  Execute `cdc cli changfeed resume` to resume the replication task.
 
     ```shell
     cdc cli changefeed resume -c test-cf --pd=http://10.0.10.25:2379
     ```
 
-## <code>[tikv:9006]GC life time is shorter than transaction duration, transaction starts at xx, GC safe point is yy</code>です。TiCDCを使用してチェンジフィードを作成すると、エラーが報告されます。 {#the-code-tikv-9006-gc-life-time-is-shorter-than-transaction-duration-transaction-starts-at-xx-gc-safe-point-is-yy-code-error-is-reported-when-i-use-ticdc-to-create-a-changefeed}
+## The <code>[tikv:9006]GC life time is shorter than transaction duration, transaction starts at xx, GC safe point is yy</code> error is reported when I use TiCDC to create a changefeed. What should I do? {#the-code-tikv-9006-gc-life-time-is-shorter-than-transaction-duration-transaction-starts-at-xx-gc-safe-point-is-yy-code-error-is-reported-when-i-use-ticdc-to-create-a-changefeed-what-should-i-do}
 
-`pd-ctl service-gc-safepoint --pd <pd-addrs>`コマンドを実行して、現在のGCセーフポイントとサービスGCセーフポイントを照会する必要があります。 GCセーフポイントがTiCDCレプリケーションタスクの`start-ts` （チェンジフィード）よりも小さい場合は、 `cdc cli create changefeed`コマンドに`--disable-gc-check`オプションを直接追加して、チェンジフィードを作成できます。
+You need to run the `pd-ctl service-gc-safepoint --pd <pd-addrs>` command to query the current GC safepoint and service GC safepoint. If the GC safepoint is smaller than the `start-ts` of the TiCDC replication task (changefeed), you can directly add the `--disable-gc-check` option to the `cdc cli create changefeed` command to create a changefeed.
 
-`pd-ctl service-gc-safepoint --pd <pd-addrs>`の結果に`gc_worker service_id`がない場合：
+If the result of `pd-ctl service-gc-safepoint --pd <pd-addrs>` does not have `gc_worker service_id`:
 
--   PDのバージョンがv4.0.8以前の場合、詳細については[PDの問題＃3128](https://github.com/tikv/pd/issues/3128)を参照してください。
--   PDがv4.0.8以前のバージョンから新しいバージョンにアップグレードされた場合、詳細については[PDの問題＃3366](https://github.com/tikv/pd/issues/3366)を参照してください。
+-   If your PD version is v4.0.8 or earlier, refer to [PD issue #3128](https://github.com/tikv/pd/issues/3128) for details.
+-   If your PD is upgraded from v4.0.8 or an earlier version to a later version, refer to [PD issue #3366](https://github.com/tikv/pd/issues/3366) for details.
 
-## TiCDCを使用してメッセージをKafkaに複製すると、Kafkaは<code>Message was too large</code>というエラーを返します {#when-i-use-ticdc-to-replicate-messages-to-kafka-kafka-returns-the-code-message-was-too-large-code-error}
+## When I use TiCDC to replicate messages to Kafka, Kafka returns the <code>Message was too large</code> error. Why? {#when-i-use-ticdc-to-replicate-messages-to-kafka-kafka-returns-the-code-message-was-too-large-code-error-why}
 
-TiCDC v4.0.8以前のバージョンでは、シンクURIでKafkaの`max-message-bytes`設定を構成するだけでは、Kafkaに出力されるメッセージのサイズを効果的に制御することはできません。メッセージサイズを制御するには、Kafkaが受信するメッセージのバイト数の制限も増やす必要があります。このような制限を追加するには、Kafkaサーバー構成に次の構成を追加します。
+For TiCDC v4.0.8 or earlier versions, you cannot effectively control the size of the message output to Kafka only by configuring the `max-message-bytes` setting for Kafka in the Sink URI. To control the message size, you also need to increase the limit on the bytes of messages to be received by Kafka. To add such a limit, add the following configuration to the Kafka server configuration.
 
-```
-# The maximum byte number of a message that the broker receives
-message.max.bytes=2147483648
-# The maximum byte number of a message that the broker copies
-replica.fetch.max.bytes=2147483648
-# The maximum message byte number that the consumer side reads
-fetch.message.max.bytes=2147483648
-```
+    # The maximum byte number of a message that the broker receives
+    message.max.bytes=2147483648
+    # The maximum byte number of a message that the broker copies
+    replica.fetch.max.bytes=2147483648
+    # The maximum message byte number that the consumer side reads
+    fetch.message.max.bytes=2147483648
 
-## TiCDCレプリケーション中にDDLステートメントがダウンストリームで実行されないかどうかを確認するにはどうすればよいですか？レプリケーションを再開するにはどうすればよいですか？ {#how-can-i-find-out-whether-a-ddl-statement-fails-to-execute-in-downstream-during-ticdc-replication-how-to-resume-the-replication}
+## How can I find out whether a DDL statement fails to execute in downstream during TiCDC replication? How to resume the replication? {#how-can-i-find-out-whether-a-ddl-statement-fails-to-execute-in-downstream-during-ticdc-replication-how-to-resume-the-replication}
 
-DDLステートメントの実行に失敗すると、レプリケーションタスク（changefeed）は自動的に停止します。 checkpoint-tsは、DDLステートメントのfinish-tsから1を引いたものです。 TiCDCがダウンストリームでこのステートメントの実行を再試行する場合は、 `cdc cli changefeed resume`を使用してレプリケーションタスクを再開します。例えば：
-
-{{< copyable "" >}}
+If a DDL statement fails to execute, the replication task (changefeed) automatically stops. The checkpoint-ts is the DDL statement's finish-ts minus one. If you want TiCDC to retry executing this statement in the downstream, use `cdc cli changefeed resume` to resume the replication task. For example:
 
 ```shell
 cdc cli changefeed resume -c test-cf --pd=http://10.0.10.25:2379
 ```
 
-失敗するこのDDLステートメントをスキップする場合は、changefeedのstart-tsをcheckpoint-ts（DDLステートメントが失敗するタイムスタンプ）に1を加えた値に設定します。たとえば、DDLステートメントが失敗するチェックポイント-tsが`415241823337054209`の場合、次のコマンドを実行して、このDDLステートメントをスキップします。
-
-{{< copyable "" >}}
+If you want to skip this DDL statement that goes wrong, set the start-ts of the changefeed to the checkpoint-ts (the timestamp at which the DDL statement goes wrong) plus one, and then run the `cdc cli changefeed create` command to create a new changefeed task. For example, if the checkpoint-ts at which the DDL statement goes wrong is `415241823337054209`, run the following commands to skip this DDL statement:
 
 ```shell
-cdc cli changefeed update -c test-cf --pd=http://10.0.10.25:2379 --start-ts 415241823337054210
-cdc cli changefeed resume -c test-cf --pd=http://10.0.10.25:2379
+cdc cli changefeed remove --pd=http://10.0.10.25:2379 --changefeed-id simple-replication-task
+cdc cli changefeed create --pd=http://10.0.10.25:2379 --sink-uri="mysql://root:123456@127.0.0.1:3306/" --changefeed-id="simple-replication-task" --sort-engine="unified" --start-ts 415241823337054210
 ```
